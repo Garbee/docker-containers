@@ -17,8 +17,8 @@ jobs:
             platform: linux/amd64
             platform-pair: linux-amd64
           - runner: ubuntu-24.04-arm
-            platform: linux/arm64/v8
-            platform-pair: linux-arm64-v8
+            platform: linux/arm64
+            platform-pair: linux-arm64
         project:
           - name: project-1
             context: ./project-1/devcontainer
