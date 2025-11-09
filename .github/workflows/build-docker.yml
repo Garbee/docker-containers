@@ -58,6 +58,7 @@ jobs:
           platforms: ${{ matrix.image.platform }}
           push: true
           tags: ${{ steps.docker-metadata.outputs.tags }}
+          annotations: ${{ steps.docker-metadata.outputs.annotations }}
           labels: ${{ steps.docker-metadata.outputs.labels }}
           cache-from: type=gha,scope=${{ matrix.project.name }}-${{ matrix.image.platform-pair }}${{ matrix.node-version && format('-node{0}', matrix.node-version) || '' }}
           cache-to: type=gha,mode=max,scope=${{ matrix.project.name }}-${{ matrix.image.platform-pair }}${{ matrix.node-version && format('-node{0}', matrix.node-version) || '' }}
