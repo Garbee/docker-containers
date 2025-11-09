@@ -23,8 +23,12 @@ jobs:
           - name: project-1
             context: ./project-1/devcontainer
             image-name: project-1-devcontainer
+        node-version:
+          - 20
+          - ''
+          - 24
     runs-on: ${{ matrix.image.runner }}
-    name: Build ${{ matrix.project.name }} for ${{ matrix.image.platform }} Docker Image
+    name: Build ${{ matrix.project.name }} for ${{ matrix.image.platform }} (Node ${{ matrix.node-version || 'default' }})
     permissions:
       contents: read
       packages: write
@@ -46,7 +50,7 @@ jobs:
         id: docker-metadata
         uses: docker/metadata-action@c1e51972afc2121e065aed6d45c65596fe445f3f # v5.8.0
         with:
-          images: "${{ env.REGISTRY }}/${{ matrix.project.image-name }}"
+          images: "${{ env.REGISTRY }}/${{ matrix.project.image-name }}${{ matrix.node-version && format('-node{0}', matrix.node-version) || '' }}"
       - name: Build and push Docker image
         uses: docker/build-push-action@48aba3b46d1b1fec4febb7c5d0c644b249a11355 # v6.10.0
         with:
@@ -57,3 +61,5 @@ jobs:
           labels: ${{ steps.docker-metadata.outputs.labels }}
           cache-from: type=gha,scope=${{ matrix.project.name }}-${{ matrix.image.platform-pair }}
           cache-to: type=gha,mode=max,scope=${{ matrix.project.name }}-${{ matrix.image.platform-pair }}
+          build-args: |
+            ${{ matrix.node-version && format('NODE_VERSION={0}', matrix.node-version) || '' }}
