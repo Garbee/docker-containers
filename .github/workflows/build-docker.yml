@@ -59,7 +59,7 @@ jobs:
           push: true
           tags: ${{ steps.docker-metadata.outputs.tags }}
           labels: ${{ steps.docker-metadata.outputs.labels }}
-          cache-from: type=gha,scope=${{ matrix.project.name }}-${{ matrix.image.platform-pair }}
-          cache-to: type=gha,mode=max,scope=${{ matrix.project.name }}-${{ matrix.image.platform-pair }}
+          cache-from: type=gha,scope=${{ matrix.project.name }}-${{ matrix.image.platform-pair }}${{ matrix.node-version && format('-node{0}', matrix.node-version) || '' }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.project.name }}-${{ matrix.image.platform-pair }}${{ matrix.node-version && format('-node{0}', matrix.node-version) || '' }}
           build-args: |
             ${{ matrix.node-version && format('NODE_VERSION={0}', matrix.node-version) || '' }}
