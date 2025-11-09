@@ -1,6 +1,8 @@
 # hadolint global ignore=DL3008,DL3013
 # syntax=docker/dockerfile:1.6
 
+ARG IMAGE_VERSION=0
+ARG TARGETARCH
 ARG NODE_VERSION=22.21.1
 ARG GRADLE_VERSION=8.14.3
 ARG JAVA_VERSION=21.0.9_10
@@ -9,6 +11,7 @@ ARG ACTIONLINT_VERSION=1.7.8
 ARG SHFMT_VERSION=3.12.0
 ARG YQ_VERSION=4.48.1
 ARG ZIZMOR_VERSION=1.16.3
+ARG GIT_VERSION=2.51.2
 
 FROM node:${NODE_VERSION}-bookworm-slim AS node-src
 FROM gradle:${GRADLE_VERSION}-jdk21-noble AS gradle-src
@@ -24,7 +27,7 @@ FROM ubuntu:noble-20251001 AS base-runtime
 
 # ---------- Git from source ----------
 FROM base-runtime AS git-dist
-ARG GIT_VERSION=2.51.2
+ARG GIT_VERSION
 ARG GIT_CHECKSUM=233d7143a2d58e60755eee9b76f559ec73ea2b3c297f5b503162ace95966b4e3
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 WORKDIR /tmp
@@ -124,14 +127,13 @@ RUN set -eux; \
 
 # ---------- Final dev runtime ----------
 FROM base-runtime AS dev-runtime
-ARG IMAGE_VERSION=0.0.0
+ARG IMAGE_VERSION
+ARG TARGETARCH
+ARG GIT_VERSION
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
-USER root
-
-ENV PATH="/home/ubuntu/.npm-global/bin:\
-/home/ubuntu/.local/bin:\
+ENV PATH="/usr/local/lib/node_modules/bin:\
 /opt/gradle/bin:\
 /opt/java/openjdk/bin:\
 /usr/local/bin:\
@@ -142,7 +144,16 @@ ENV PATH="/home/ubuntu/.npm-global/bin:\
   NPM_CONFIG_FUND=false \
   NPM_CONFIG_AUDIT=false \
   FZF_DEFAULT_OPTS="--height=40% --reverse --border" \
-  NPM_CONFIG_PREFIX=/home/ubuntu/.npm-global
+  PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
+
+# Setup a node group for shared global npm packages. This
+# with correct permissions allows multiple users to
+# share the same global npm package installation.
+RUN groupadd -r node && \
+    usermod -aG node ubuntu && \
+    mkdir -p /usr/local/lib/node_modules && \
+    chown -R root:node /usr/local/lib/node_modules /usr/local/bin && \
+    chmod -R 775 /usr/local/lib/node_modules /usr/local/bin
 
 # Bring in toolchains/artifacts (optimized with --link)
 COPY --link --from=hadolint-src   /bin/hadolint /usr/local/bin/
@@ -164,6 +175,7 @@ COPY --from=gradle-src /usr/bin/gradle /usr/bin/gradle
 
 RUN --mount=type=cache,target=/var/cache/apt,id=apt-archives,sharing=shared \
   --mount=type=cache,target=/var/lib/apt/lists,id=apt-lists,sharing=locked \
+  --mount=type=cache,target=/ms-playwright,id=playwright-browsers-${TARGETARCH},sharing=shared \
   set -eux; \
   DEBIAN_FRONTEND=noninteractive \
   APT_LISTCHANGES_FRONTEND=none \
@@ -185,19 +197,23 @@ RUN --mount=type=cache,target=/var/cache/apt,id=apt-archives,sharing=shared \
   openssh-client gnupg gnupg2 \
   # User privilege management
   sudo gosu; \
+  # Always have latest stable npm
+  npm install -g npm@latest; \
+  # Setup Playwright Browsers
+  mkdir -p ${PLAYWRIGHT_BROWSERS_PATH}; \
+  npx -y playwright@latest install --with-deps chromium; \
+  chmod -R 755 ${PLAYWRIGHT_BROWSERS_PATH}; \
+  # Clean up apt caches
   rm -rf /var/lib/apt/lists/*; \
   # Give ubuntu user password-less sudo access
   echo "ubuntu ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers.d/ubuntu; \
   chmod 0440 /etc/sudoers.d/ubuntu; \
   # Install globally used python tools
-  gosu ubuntu python3.12 -m pip install --no-cache-dir --user --break-system-packages autopep8 pylint pip-licenses; \
-  gosu ubuntu mkdir -p /home/ubuntu/.npm-global; \
-  gosu ubuntu mkdir -p /home/ubuntu/.claude;
+  python3.12 -m pip install --no-cache-dir --user --break-system-packages autopep8 pylint pip-licenses;
 
-ADD --chown=1000:1000 --chmod=744 https://raw.githubusercontent.com/git/git/refs/tags/v2.51.0/contrib/completion/git-prompt.sh /home/ubuntu/.bashrc.d/01-git-prompt.sh
+ADD --chown=1000:1000 --chmod=744 https://raw.githubusercontent.com/git/git/refs/tags/v${GIT_VERSION}/contrib/completion/git-prompt.sh /home/ubuntu/.bashrc.d/01-git-prompt.sh
+ADD --chown=1000:1000 --chmod=744 https://raw.githubusercontent.com/git/git/refs/tags/v${GIT_VERSION}/contrib/completion/git-prompt.sh /root/.bashrc.d/01-git-prompt.sh
 
-USER ubuntu
+WORKDIR /workspaces
 
-RUN npx -y playwright@latest install chromium --with-deps
-
-CMD [ "sleep", "infinity" ]
+CMD [ "bash" ]
