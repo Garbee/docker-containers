@@ -21,8 +21,8 @@ jobs:
             platform-pair: linux-arm64
         project:
           - name: project-1
-            context: ./project-1/devcontainer
-            image-name: project-1-devcontainer
+            context: ./project-1
+            image-name: project-1
         node-version:
           - 20
           - ''
