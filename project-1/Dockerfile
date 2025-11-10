@@ -144,7 +144,7 @@ ENV PATH="/usr/local/lib/node_modules/bin:\
   NPM_CONFIG_FUND=false \
   NPM_CONFIG_AUDIT=false \
   FZF_DEFAULT_OPTS="--height=40% --reverse --border" \
-  PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
+  PUPPETEER_CACHE_DIR=/browsers
 
 # Setup a node group for shared global npm packages. This
 # with correct permissions allows multiple users to
@@ -175,7 +175,7 @@ COPY --from=gradle-src /usr/bin/gradle /usr/bin/gradle
 
 RUN --mount=type=cache,target=/var/cache/apt,id=apt-archives,sharing=shared \
   --mount=type=cache,target=/var/lib/apt/lists,id=apt-lists,sharing=locked \
-  --mount=type=cache,target=/ms-playwright,id=playwright-browsers-${TARGETARCH},sharing=shared \
+  --mount=type=cache,target=/ms-playwright,id=puppeteer-browsers-${TARGETARCH},sharing=shared \
   set -eux; \
   DEBIAN_FRONTEND=noninteractive \
   APT_LISTCHANGES_FRONTEND=none \
@@ -199,10 +199,13 @@ RUN --mount=type=cache,target=/var/cache/apt,id=apt-archives,sharing=shared \
   sudo gosu; \
   # Always have latest stable npm
   npm install -g npm@latest; \
-  # Setup Playwright Browsers
-  mkdir -p ${PLAYWRIGHT_BROWSERS_PATH}; \
-  npx -y playwright@latest install --with-deps chromium; \
-  chmod -R 755 ${PLAYWRIGHT_BROWSERS_PATH}; \
+  # Setup Puppeteer Browsers
+  mkdir -p ${PUPPETEER_CACHE_DIR}; \
+  CHROME_PATH=$(npx -y @puppeteer/browsers install chrome@stable --path ${PUPPETEER_CACHE_DIR} | tail -n 1); \
+  echo "export CHROME_BIN=${CHROME_PATH}" >> /etc/environment; \
+  CHROMEDRIVER_PATH=$(npx -y @puppeteer/browsers install chromedriver@stable --path ${PUPPETEER_CACHE_DIR} | tail -n 1); \
+  echo "export CHROMEDRIVER_BIN=${CHROMEDRIVER_PATH}" >> /etc/environment; \
+  chmod -R 775 ${PUPPETEER_CACHE_DIR}; \
   # Clean up apt caches
   rm -rf /var/lib/apt/lists/*; \
   # Give ubuntu user password-less sudo access
