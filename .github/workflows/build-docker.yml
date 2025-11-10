@@ -58,6 +58,8 @@ jobs:
           context: ${{ matrix.project.context }}
           platforms: ${{ matrix.image.platform }}
           labels: ${{ steps.docker-metadata.outputs.labels }}
+          provenance: false
+          sbom: false
           outputs: type=image,name=${{ env.REGISTRY }}/${{ matrix.project.image-name }}${{ matrix.node-version && format('-node{0}', matrix.node-version) || '' }},push-by-digest=true,name-canonical=true,push=true
           cache-from: type=gha,scope=${{ matrix.project.name }}-${{ matrix.image.platform-pair }}${{ matrix.node-version && format('-node{0}', matrix.node-version) || '' }}
           cache-to: type=gha,mode=max,scope=${{ matrix.project.name }}-${{ matrix.image.platform-pair }}${{ matrix.node-version && format('-node{0}', matrix.node-version) || '' }}
