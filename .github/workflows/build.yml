@@ -4,6 +4,9 @@ name: Build multi arch Docker Image with separate Github Runners
 
 on:
   workflow_dispatch:
+  schedule:
+    # Run at 3:17 AM UTC every Sunday
+    - cron: '17 3 * * 0'
   push:
     branches:
       - main
@@ -195,6 +198,39 @@ jobs:
           pattern: digests-*
           merge-multiple: true
 
+      - name: Generate Docker tag
+        id: tag_info
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          SHA: ${{ github.sha }}
+          RUN_NUMBER: ${{ github.run_number }}
+          RUN_ATTEMPT: ${{ github.run_attempt }}
+        run: |
+          YEAR_WEEK=$(date -u +"%Y-W%V")
+
+          case "$EVENT_NAME" in
+            schedule)
+              RUN_TYPE="scheduled"
+              UNIQUE="${RUN_NUMBER}-${RUN_ATTEMPT}"
+              ;;
+            push)
+              RUN_TYPE="push"
+              UNIQUE="$SHA"
+              ;;
+            workflow_dispatch)
+              RUN_TYPE="manual"
+              UNIQUE="${RUN_NUMBER}-${RUN_ATTEMPT}-$(date -u +"%H%M%S")"
+              ;;
+            *)
+              RUN_TYPE="$EVENT_NAME"
+              UNIQUE="${RUN_NUMBER}-${RUN_ATTEMPT}"
+              ;;
+          esac
+
+          TAG="${YEAR_WEEK}-${RUN_TYPE}-${UNIQUE}"
+
+          echo "Docker Tag: $TAG"
+          echo "TAG=$TAG" >> $GITHUB_OUTPUT
 
       - name: Docker meta
         # This step generates metadata for the Docker image.
@@ -209,6 +245,11 @@ jobs:
           tags: |
             type=raw,value=main,enable=${{ github.ref_name == 'main' }}
             type=raw,value=latest,enable=${{ github.ref_name == 'main' }}
+            type=sha,prefix={{branch}}-
+            type=raw,value=${{ steps.tag_info.outputs.TAG }}
+            type=raw,value=on:manual,enable=${{ github.event_name == 'workflow_dispatch' }}
+            type=raw,value=on:scheduled,enable=${{ github.event_name == 'schedule' }}
+            type=raw,value=on:push,enable=${{ github.event_name == 'push' }}
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435 # v3.11.1
