@@ -50,7 +50,7 @@ jobs:
         id: docker-metadata
         uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051 # v5.10.0
         env:
-          DOCKER_METADATA_ANNOTATIONS_LEVELS: manifest,index
+          DOCKER_METADATA_ANNOTATIONS_LEVELS: manifest
         with:
           images: "${{ env.REGISTRY }}/${{ matrix.project.image-name }}${{ matrix.node-version && format('-node{0}', matrix.node-version) || '' }}"
           flavor: |
