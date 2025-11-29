@@ -234,9 +234,9 @@ RUN --mount=type=cache,target=/var/cache/apt,id=apt-archives,sharing=shared \
   npm install -g npm@latest; \
   # Setup Puppeteer Browsers
   mkdir -p ${PUPPETEER_CACHE_DIR}; \
-  CHROME_PATH=$(npx -y @puppeteer/browsers install chrome@stable --path ${PUPPETEER_CACHE_DIR} | tail -n 1); \
+  CHROME_PATH=$(npx -y @puppeteer/browsers install chrome@stable --path ${PUPPETEER_CACHE_DIR} | tail -n 1 | cut -d' ' -f2); \
   echo "export CHROME_BIN=${CHROME_PATH}" >> /etc/environment; \
-  CHROMEDRIVER_PATH=$(npx -y @puppeteer/browsers install chromedriver@stable --path ${PUPPETEER_CACHE_DIR} | tail -n 1); \
+  CHROMEDRIVER_PATH=$(npx -y @puppeteer/browsers install chromedriver@stable --path ${PUPPETEER_CACHE_DIR} | tail -n 1 | cut -d' ' -f2); \
   echo "export CHROMEDRIVER_BIN=${CHROMEDRIVER_PATH}" >> /etc/environment; \
   chmod -R 775 ${PUPPETEER_CACHE_DIR}; \
   # Clean up apt caches
