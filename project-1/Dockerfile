@@ -146,14 +146,15 @@ ENV PATH="/usr/local/lib/node_modules/bin:\
   FZF_DEFAULT_OPTS="--height=40% --reverse --border" \
   PUPPETEER_CACHE_DIR=/browsers
 
-# Setup a node group for shared global npm packages. This
-# with correct permissions allows multiple users to
-# share the same global npm package installation.
 RUN groupadd -r node && \
     usermod -aG node ubuntu && \
+    usermod -aG staff ubuntu && \
     mkdir -p /usr/local/lib/node_modules && \
     chown -R root:node /usr/local/lib/node_modules /usr/local/bin && \
-    chmod -R 775 /usr/local/lib/node_modules /usr/local/bin
+    chmod -R 775 /usr/local/lib/node_modules /usr/local/bin && \
+    mkdir -p "${PUPPETEER_CACHE_DIR}" && \
+    chown -R root:staff "${PUPPETEER_CACHE_DIR}" && \
+    chmod -R 775 "${PUPPETEER_CACHE_DIR}"
 
 # Bring in toolchains/artifacts (optimized with --link)
 COPY --link --from=hadolint-src   /bin/hadolint /usr/local/bin/
@@ -175,7 +176,7 @@ COPY --from=gradle-src /usr/bin/gradle /usr/bin/gradle
 
 RUN --mount=type=cache,target=/var/cache/apt,id=apt-archives,sharing=shared \
   --mount=type=cache,target=/var/lib/apt/lists,id=apt-lists,sharing=locked \
-  --mount=type=cache,target=/ms-playwright,id=puppeteer-browsers-${TARGETARCH},sharing=shared \
+  --mount=type=cache,target=${PUPPETEER_CACHE_DIR},id=puppeteer-browsers-${TARGETARCH},sharing=shared \
   set -eux; \
   DEBIAN_FRONTEND=noninteractive \
   APT_LISTCHANGES_FRONTEND=none \
@@ -185,7 +186,7 @@ RUN --mount=type=cache,target=/var/cache/apt,id=apt-archives,sharing=shared \
   apt-get install -y --no-install-recommends software-properties-common \
   # Python installations
   python3.12 python3.12-venv python3.12-dev \
-  python3-pip \
+  python3-pip python3-full python3-autopep8 pylint \
   # For FFMPEG
   libpulse0 \
   # Fonts Noto (about 56MB)
@@ -233,19 +234,17 @@ RUN --mount=type=cache,target=/var/cache/apt,id=apt-archives,sharing=shared \
   # Always have latest stable npm
   npm install -g npm@latest; \
   # Setup Puppeteer Browsers
-  mkdir -p ${PUPPETEER_CACHE_DIR}; \
   CHROME_PATH=$(npx -y @puppeteer/browsers install chrome@stable --path ${PUPPETEER_CACHE_DIR} | tail -n 1 | cut -d' ' -f2); \
   echo "export CHROME_BIN=${CHROME_PATH}" >> /etc/environment; \
   CHROMEDRIVER_PATH=$(npx -y @puppeteer/browsers install chromedriver@stable --path ${PUPPETEER_CACHE_DIR} | tail -n 1 | cut -d' ' -f2); \
   echo "export CHROMEDRIVER_BIN=${CHROMEDRIVER_PATH}" >> /etc/environment; \
-  chmod -R 775 ${PUPPETEER_CACHE_DIR}; \
   # Clean up apt caches
   rm -rf /var/lib/apt/lists/*; \
   # Give ubuntu user password-less sudo access
   echo "ubuntu ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers.d/ubuntu; \
   chmod 0440 /etc/sudoers.d/ubuntu; \
-  # Install globally used python tools
-  python3.12 -m pip install --no-cache-dir --user --break-system-packages autopep8 pylint pip-licenses;
+  # Install globally used python tools that can't be installed from apt
+  python3.12 -m pip install --no-cache-dir --user --break-system-packages pip-licenses;
 
 ADD --chown=1000:1000 --chmod=744 https://raw.githubusercontent.com/git/git/refs/tags/v${GIT_VERSION}/contrib/completion/git-prompt.sh /home/ubuntu/.bashrc.d/01-git-prompt.sh
 ADD --chown=1000:1000 --chmod=744 https://raw.githubusercontent.com/git/git/refs/tags/v${GIT_VERSION}/contrib/completion/git-prompt.sh /root/.bashrc.d/01-git-prompt.sh
