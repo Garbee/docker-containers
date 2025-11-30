@@ -17,83 +17,12 @@ FROM node:${NODE_VERSION}-bookworm-slim AS node-src
 FROM gradle:${GRADLE_VERSION}-jdk21-noble AS gradle-src
 FROM eclipse-temurin:${JAVA_VERSION}-jdk-noble AS jdk-src
 FROM hadolint/hadolint:v${HADOLINT_VERSION}-debian AS hadolint-src
-FROM garbee/github-cli:2.78.0 AS gh-cli-src
 FROM rhysd/actionlint:${ACTIONLINT_VERSION} AS actionlint-src
 FROM mvdan/shfmt:v${SHFMT_VERSION} AS shfmt-src
 FROM mikefarah/yq:${YQ_VERSION} AS yq-src
 FROM ghcr.io/zizmorcore/zizmor:${ZIZMOR_VERSION} AS zizmor-src
 # Just setting this one up for re-use so it only needs to be updated in one place.
 FROM ubuntu:noble-20251001 AS base-runtime
-
-# ---------- Git from source ----------
-FROM base-runtime AS git-dist
-ARG GIT_VERSION
-ARG GIT_CHECKSUM=233d7143a2d58e60755eee9b76f559ec73ea2b3c297f5b503162ace95966b4e3
-SHELL ["/bin/bash", "-o", "pipefail", "-c"]
-WORKDIR /tmp
-ENV DEBIAN_FRONTEND=noninteractive \
-  APT_LISTCHANGES_FRONTEND=none \
-  UCF_FORCE_CONFFNEW=1 \
-  TZ=UTC \
-  NO_TCLTK=YesPlease \
-  NO_GETTEXT=YesPlease \
-  NO_SVN_TESTS=YesPlease \
-  NO_GITWEB=YesPlease \
-  NO_INSTALL_HARDLINKS=YesPlease \
-  NO_PERL=YesPlease \
-  NO_PYTHON=YesPlease \
-  OPENSSL_SHA256=YesPlease \
-  CFLAGS="-O2 -pipe -march=native" \
-  LDFLAGS="-Wl,--as-needed" \
-  TARBALL="/tmp/git-${GIT_VERSION}.tar.xz" \
-  SIGNATURE="/tmp/git-${GIT_VERSION}.tar.sign"
-
-ADD --checksum=sha256:${GIT_CHECKSUM} \
-  https://mirrors.edge.kernel.org/pub/software/scm/git/git-${GIT_VERSION}.tar.xz ${TARBALL}
-ADD https://mirrors.edge.kernel.org/pub/software/scm/git/git-${GIT_VERSION}.tar.sign ${SIGNATURE}
-
-RUN --mount=type=cache,target=/var/cache/apt,id=apt-archives,sharing=shared \
-  --mount=type=cache,target=/var/lib/apt/lists,id=apt-lists,sharing=locked \
-  set -eux; \
-  apt-get update && apt-get install -y --no-install-recommends \
-  autoconf \
-  build-essential \
-  ca-certificates \
-  curl \
-  dirmngr \
-  gettext \
-  git \
-  gnupg \
-  libcurl4-gnutls-dev \
-  libexpat1-dev \
-  libssl-dev \
-  software-properties-common \
-  unzip \
-  xz-utils \
-  zlib1g-dev; \
-  rm -rf /var/lib/apt/lists/*; \
-  # Import Git maintainer keys and verify signature
-  GNUPGHOME="$(mktemp -d)"; \
-  export GNUPGHOME; \
-  # Import both primary key and signing subkey for the git maintainer
-  # To find current key IDs: download a recent .tar.sign file and run:
-  # gpg --verify git-X.Y.Z.tar.sign git-X.Y.Z.tar.xz
-  # The error will show "using RSA key KEYID" - use that KEYID below
-  # Get both the primary and subkey to import.
-  gpg --batch --keyserver keyserver.ubuntu.com --recv-keys \
-  96E07AF25771955980DAD10020D04E5A713660A7 \
-  E1F036B1FEE7221FC778ECEFB0B5E88696AFE6CB; \
-  # Verify signature - note: signature is for .tar not .tar.xz
-  gpg --batch --trust-model tofu --verify "${SIGNATURE}" <(xz -dc "${TARBALL}"); \
-  rm -rf "${GNUPGHOME}" "${SIGNATURE}"; \
-  # Extract source directly into current directory
-  tar -xJf "${TARBALL}" --strip-components=1; \
-  rm "${TARBALL}"; \
-  # Build Git
-  make -j"$(nproc)" configure; \
-  ./configure --prefix=/opt/git --disable-nls; \
-  make all -j"$(nproc)";\
-  make install;
 
 # ---------- JQ ----------
 FROM busybox:1.37.0-glibc AS jq-dist
@@ -158,7 +87,6 @@ RUN groupadd -r node && \
 
 # Bring in toolchains/artifacts (optimized with --link)
 COPY --link --from=hadolint-src   /bin/hadolint /usr/local/bin/
-COPY --link --from=gh-cli-src         /opt/     /usr/local/
 # Actionlint also has shellcheck in its bin
 COPY --link --from=actionlint-src  /usr/local/bin/ /usr/local/bin/
 COPY --link --from=jq-dist         /opt/jq/jq     /usr/local/bin/jq
@@ -169,7 +97,6 @@ COPY --link --from=shfmt-src       /bin/              /usr/local/bin/
 # Symlink-dependent toolchains (cannot use --link)
 COPY --from=node-src /usr/local/ /usr/local/
 COPY --from=node-src /opt /opt
-COPY --from=git-dist        /opt/git                       /usr/local/
 COPY --from=jdk-src $JAVA_HOME $JAVA_HOME
 COPY --from=gradle-src /opt/gradle ${GRADLE_HOME}
 COPY --from=gradle-src /usr/bin/gradle /usr/bin/gradle
@@ -182,7 +109,15 @@ RUN --mount=type=cache,target=/var/cache/apt,id=apt-archives,sharing=shared \
   APT_LISTCHANGES_FRONTEND=none \
   UCF_FORCE_CONFFNEW=1 \
   TZ=UTC \
-  apt-get update; \
+  sudo add-apt-repository ppa:git-core/ppa -y; \
+  (type -p wget >/dev/null || (sudo apt update && sudo apt install wget -y)) \
+	&& sudo mkdir -p -m 755 /etc/apt/keyrings \
+	&& out="$(mktemp)" && wget -nv -O "$out" https://cli.github.com/packages/githubcli-archive-keyring.gpg \
+	&& cat $out | sudo tee /etc/apt/keyrings/githubcli-archive-keyring.gpg > /dev/null \
+	&& sudo chmod go+r /etc/apt/keyrings/githubcli-archive-keyring.gpg \
+	&& sudo mkdir -p -m 755 /etc/apt/sources.list.d \
+	&& echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null \
+	&& sudo apt update \
   apt-get install -y --no-install-recommends software-properties-common \
   # Python installations
   python3.12 python3.12-venv python3.12-dev \
@@ -227,16 +162,16 @@ RUN --mount=type=cache,target=/var/cache/apt,id=apt-archives,sharing=shared \
   # Developer Experience Additions (about 68MB)
   bash-completion fzf ripgrep bat direnv eza git-delta neovim \
   curl lsb-release unzip \
-  # Core development needs
-  openssh-client gnupg gnupg2 \
+  # Core development needs, gh is the GitHub CLI
+  openssh-client gnupg gnupg2 git gh \
   # User privilege management
   sudo gosu; \
   # Always have latest stable npm
   npm install -g npm@latest; \
   # Setup Puppeteer Browsers
-  CHROME_PATH=$(npx -y @puppeteer/browsers install chrome@stable --path ${PUPPETEER_CACHE_DIR} | tail -n 1 | cut -d' ' -f2); \
+  CHROME_PATH=$(npx -y @puppeteer/browsers install chrome@stable --path "${PUPPETEER_CACHE_DIR}" | tail -n 1 | cut -d' ' -f2); \
   echo "export CHROME_BIN=${CHROME_PATH}" >> /etc/environment; \
-  CHROMEDRIVER_PATH=$(npx -y @puppeteer/browsers install chromedriver@stable --path ${PUPPETEER_CACHE_DIR} | tail -n 1 | cut -d' ' -f2); \
+  CHROMEDRIVER_PATH=$(npx -y @puppeteer/browsers install chromedriver@stable --path "${PUPPETEER_CACHE_DIR}" | tail -n 1 | cut -d' ' -f2); \
   echo "export CHROMEDRIVER_BIN=${CHROMEDRIVER_PATH}" >> /etc/environment; \
   # Clean up apt caches
   rm -rf /var/lib/apt/lists/*; \
