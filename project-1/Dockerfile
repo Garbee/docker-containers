@@ -1,5 +1,5 @@
 # hadolint global ignore=DL3008,DL3013
-# syntax=docker/dockerfile:1.6
+# syntax=docker/dockerfile:1
 
 ARG IMAGE_VERSION=0
 ARG TARGETARCH
@@ -139,8 +139,8 @@ RUN --mount=type=cache,target=/var/cache/apt,id=apt-archives,sharing=shared \
   libxtst6 \
   wget \
   xdg-utils \
-  # Developer Experience Additions (about 68MB)
-  bash-completion fzf ripgrep bat direnv eza git-delta neovim \
+  # Developer Experience Additions
+  bash-completion fzf ripgrep bat direnv eza git-delta \
   curl lsb-release unzip \
   # Core development needs, gh is the GitHub CLI
   openssh-client gnupg gnupg2 git gh \
