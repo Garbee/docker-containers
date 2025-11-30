@@ -74,15 +74,17 @@ jobs:
         id: prepare
         env:
           PLATFORM: ${{ matrix.platform }}
-          NODE_VERSION: ${{ matrix['node-version'] }}
           OWNER: ${{ github.repository_owner }}
+          NODE_VERSION: ${{ matrix.node-version }}
         run: |
           echo "PLATFORM_PAIR=${PLATFORM//\//-}" >> $GITHUB_OUTPUT
           LOWER_OWNER=$(echo "$OWNER" | tr '[:upper:]' '[:lower:]')
-          if [ -n "${NODE_VERSION}" ]; then
-            echo "GHCR_IMAGE=ghcr.io/$LOWER_OWNER/project-1:node-${NODE_VERSION}" >> $GITHUB_OUTPUT
+          echo "GHCR_IMAGE=ghcr.io/$LOWER_OWNER/project-1" >> $GITHUB_OUTPUT
+          # Set node version suffix for artifact naming
+          if [ -z "$NODE_VERSION" ]; then
+            echo "NODE_SUFFIX=" >> $GITHUB_OUTPUT
           else
-            echo "GHCR_IMAGE=ghcr.io/$LOWER_OWNER/project-1" >> $GITHUB_OUTPUT
+            echo "NODE_SUFFIX=-node${NODE_VERSION}" >> $GITHUB_OUTPUT
           fi
       - name: Checkout
         uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
@@ -138,6 +140,8 @@ jobs:
           platforms: ${{ matrix.platform }}
           labels: ${{ steps.meta.outputs.labels }}
           annotations: ${{ steps.meta.outputs.annotations }}
+          build-args: |
+            NODE_VERSION=${{ matrix.node-version }}
           outputs: type=image,name=${{ steps.prepare.outputs.GHCR_IMAGE }},push-by-digest=true,name-canonical=true,push=true,oci-mediatypes=true
 
 
@@ -159,7 +163,7 @@ jobs:
         # The artifact is retained for 1 day, and if no files are found, it will throw an error.
         uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
         with:
-          name: digests-${{ steps.prepare.outputs.PLATFORM_PAIR }}
+          name: digests-${{ steps.prepare.outputs.PLATFORM_PAIR }}${{ steps.prepare.outputs.NODE_SUFFIX }}
           path: /tmp/digests/*
           if-no-files-found: error
           retention-days: 1
@@ -167,8 +171,17 @@ jobs:
 
   merge:
     # This job merges the Docker manifests for the different platforms built in the previous job.
-    name: Merge Docker manifests
+    name: Merge Docker manifests (Node ${{ matrix.node-version || 'default' }})
     runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version:
+          - 20
+          - ''
+          - 24
+
     permissions:
       attestations: write
       actions: read
@@ -190,11 +203,24 @@ jobs:
       # This job depends on the build job to complete before it starts.
       # It ensures that the Docker images for all platforms are built before merging the manifests.
     steps:
+      - name: Prepare node version suffix
+        id: node-prepare
+        env:
+          NODE_VERSION: ${{ matrix.node-version }}
+        run: |
+          # Set node version suffix for artifact pattern and tags
+          if [ -z "$NODE_VERSION" ]; then
+            echo "NODE_SUFFIX=" >> $GITHUB_OUTPUT
+            echo "NODE_TAG_SUFFIX=" >> $GITHUB_OUTPUT
+          else
+            echo "NODE_SUFFIX=-node${NODE_VERSION}" >> $GITHUB_OUTPUT
+            echo "NODE_TAG_SUFFIX=-node${NODE_VERSION}" >> $GITHUB_OUTPUT
+          fi
       - name: Download digests
         uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6.0.0
         with:
           path: /tmp/digests
-          pattern: digests-*
+          pattern: digests-*${{ steps.node-prepare.outputs.NODE_SUFFIX }}
           merge-multiple: true
 
       - name: Generate Docker tag
@@ -204,6 +230,7 @@ jobs:
           SHA: ${{ github.sha }}
           RUN_NUMBER: ${{ github.run_number }}
           RUN_ATTEMPT: ${{ github.run_attempt }}
+          NODE_SUFFIX: ${{ steps.node-prepare.outputs.NODE_TAG_SUFFIX }}
         run: |
           YEAR_WEEK=$(date -u +"%Y-W%V")
 
@@ -226,7 +253,7 @@ jobs:
               ;;
           esac
 
-          TAG="${YEAR_WEEK}-${RUN_TYPE}-${UNIQUE}"
+          TAG="${YEAR_WEEK}-${RUN_TYPE}-${UNIQUE}${NODE_SUFFIX}"
 
           echo "Docker Tag: $TAG"
           echo "TAG=$TAG" >> $GITHUB_OUTPUT
@@ -242,13 +269,13 @@ jobs:
           annotations: |
             type=org.opencontainers.image.description,value=${{ github.event.repository.description || 'No description provided' }}
           tags: |
-            type=raw,value=main,enable=${{ github.ref_name == 'main' }}
-            type=raw,value=latest,enable=${{ github.ref_name == 'main' }}
-            type=sha,prefix={{branch}}-
+            type=raw,value=main${{ steps.node-prepare.outputs.NODE_TAG_SUFFIX }},enable=${{ github.ref_name == 'main' }}
+            type=raw,value=latest${{ steps.node-prepare.outputs.NODE_TAG_SUFFIX }},enable=${{ github.ref_name == 'main' && matrix.node-version == '' }}
+            type=sha,prefix={{branch}}-,suffix=${{ steps.node-prepare.outputs.NODE_TAG_SUFFIX }}
             type=raw,value=${{ steps.tag_info.outputs.TAG }}
-            type=raw,value=on:manual,enable=${{ github.event_name == 'workflow_dispatch' }}
-            type=raw,value=on:scheduled,enable=${{ github.event_name == 'schedule' }}
-            type=raw,value=on:push,enable=${{ github.event_name == 'push' }}
+            type=raw,value=on:manual${{ steps.node-prepare.outputs.NODE_TAG_SUFFIX }},enable=${{ github.event_name == 'workflow_dispatch' }}
+            type=raw,value=on:scheduled${{ steps.node-prepare.outputs.NODE_TAG_SUFFIX }},enable=${{ github.event_name == 'schedule' }}
+            type=raw,value=on:push${{ steps.node-prepare.outputs.NODE_TAG_SUFFIX }},enable=${{ github.event_name == 'push' }}
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435 # v3.11.1
@@ -315,4 +342,4 @@ jobs:
         uses: geekyeggo/delete-artifact@f275313e70c08f6120db482d7a6b98377786765b # v5.1.0
         with:
           name: |
-            digests-*
+            digests-*${{ steps.node-prepare.outputs.NODE_SUFFIX }}
