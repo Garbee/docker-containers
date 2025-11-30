@@ -125,7 +125,7 @@ RUN --mount=type=cache,target=/var/cache/apt,id=apt-archives,sharing=shared \
   && apt-get install -y --no-install-recommends \
   # Python installations
   python3.12 python3.12-venv python3.12-dev \
-  python3-pip python3-autopep8 pylint \
+  python3-pip \
   # For FFMPEG
   libpulse0 \
   # Fonts Noto (about 56MB)
@@ -185,7 +185,7 @@ RUN --mount=type=cache,target=/var/cache/apt,id=apt-archives,sharing=shared \
   # Install globally used python tools that can't be installed from apt
   python3.12 -m pip config set global.break-system-packages true; \
   gosu ubuntu python3.12 -m pip config set global.break-system-packages true; \
-  gosu ubuntu python3.12 -m pip install --no-cache-dir --user pip-licenses; \
+  gosu ubuntu python3.12 -m pip install --no-cache-dir --user pip-licenses autopep8 pylint; \
   # Setup npm config
   npm config set '@deque:registry=https://agora.dequecloud.com/artifactory/api/npm/dequelabs/'; \
   gosu ubuntu npm config set '@deque:registry=https://agora.dequecloud.com/artifactory/api/npm/dequelabs/';
