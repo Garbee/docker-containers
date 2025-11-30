@@ -270,7 +270,7 @@ jobs:
             type=org.opencontainers.image.description,value=${{ github.event.repository.description || 'No description provided' }}
           tags: |
             type=raw,value=main${{ steps.node-prepare.outputs.NODE_TAG_SUFFIX }},enable=${{ github.ref_name == 'main' }}
-            type=raw,value=latest${{ steps.node-prepare.outputs.NODE_TAG_SUFFIX }},enable=${{ github.ref_name == 'main' && matrix.node-version == '' }}
+            type=raw,value=latest,enable=${{ github.ref_name == 'main' && matrix.node-version == '22' }}
             type=sha,prefix={{branch}}-,suffix=${{ steps.node-prepare.outputs.NODE_TAG_SUFFIX }}
             type=raw,value=${{ steps.tag_info.outputs.TAG }}
             type=raw,value=on:manual${{ steps.node-prepare.outputs.NODE_TAG_SUFFIX }},enable=${{ github.event_name == 'workflow_dispatch' }}
