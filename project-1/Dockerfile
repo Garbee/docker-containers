@@ -125,7 +125,7 @@ RUN --mount=type=cache,target=/var/cache/apt,id=apt-archives,sharing=shared \
   && apt-get install -y --no-install-recommends \
   # Python installations
   python3.12 python3.12-venv python3.12-dev \
-  python3-pip python3-full python3-autopep8 pylint \
+  python3-pip python3-autopep8 pylint \
   # For FFMPEG
   libpulse0 \
   # Fonts Noto (about 56MB)
