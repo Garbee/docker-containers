@@ -31,14 +31,10 @@ jobs:
         platform:
           - linux/amd64
           - linux/arm64
-        project:
-          - name: project-1
-            context: ./project-1
-            image-name: project-1
         node-version:
-          # - 20
+          - 20
           - ''
-          # - 24
+          - 24
 
     permissions:
       # Permissions for the build job, which can be overridden at the step level
@@ -64,7 +60,7 @@ jobs:
     # For linux/arm64, it runs on an Ubuntu 24.04 ARM runner.
     # The runner is selected based on the platform specified in the matrix.
 
-    name: Build ${{ matrix.project.name }} for ${{ matrix.platform }} (Node ${{ matrix.node-version || 'default' }})
+    name: Build project-1 for ${{ matrix.platform }} (Node ${{ matrix.node-version || 'default' }})
 
     outputs:
       GHCR_IMAGE: ${{ steps.prepare.outputs.GHCR_IMAGE }}
@@ -76,12 +72,18 @@ jobs:
         # This is useful for naming artifacts and other resources that cannot contain '/'.
         # The environment variable PLATFORMS_PAIR will be used later in the workflow.
         id: prepare
+        env:
+          PLATFORM: ${{ matrix.platform }}
+          NODE_VERSION: ${{ matrix['node-version'] }}
+          OWNER: ${{ github.repository_owner }}
         run: |
-          platform=${{ matrix.platform }}
-          echo "PLATFORM_PAIR=${platform//\//-}" >> $GITHUB_OUTPUT
-          LOWER_OWNER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
-          echo "GHCR_IMAGE=ghcr.io/$LOWER_OWNER/${{ matrix.project['image-name'] }}" >> $GITHUB_OUTPUT
-
+          echo "PLATFORM_PAIR=${PLATFORM//\//-}" >> $GITHUB_OUTPUT
+          LOWER_OWNER=$(echo "$OWNER" | tr '[:upper:]' '[:lower:]')
+          if [ -n "${NODE_VERSION}" ]; then
+            echo "GHCR_IMAGE=ghcr.io/$LOWER_OWNER/project-1:node-${NODE_VERSION}" >> $GITHUB_OUTPUT
+          else
+            echo "GHCR_IMAGE=ghcr.io/$LOWER_OWNER/project-1" >> $GITHUB_OUTPUT
+          fi
       - name: Checkout
         uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
         # This step checks out the code from the repository.
@@ -132,7 +134,7 @@ jobs:
         env:
           DOCKER_BUILDKIT: 1
         with:
-          context: ${{ matrix.project.context }}
+          context: ./project-1
           platforms: ${{ matrix.platform }}
           labels: ${{ steps.meta.outputs.labels }}
           annotations: ${{ steps.meta.outputs.annotations }}
@@ -140,13 +142,15 @@ jobs:
 
 
       - name: Export digest
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
         # This step exports the digest of the built image to a file.
         # It creates a directory in /tmp/digests and saves the digest of the image to a file.
         # The digest is obtained from the output of the build step.
         # The digest is used to uniquely identify the built image and can be used for further processing or verification.
         run: |
           mkdir -p /tmp/digests
-          digest="${{ steps.build.outputs.digest }}"
+          digest="$DIGEST"
           touch "/tmp/digests/${digest#sha256:}"
 
       - name: Upload digest
