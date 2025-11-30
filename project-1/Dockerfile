@@ -183,7 +183,10 @@ RUN --mount=type=cache,target=/var/cache/apt,id=apt-archives,sharing=shared \
   echo "ubuntu ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers.d/ubuntu; \
   chmod 0440 /etc/sudoers.d/ubuntu; \
   # Install globally used python tools that can't be installed from apt
-  python3.12 -m pip install --no-cache-dir --user --break-system-packages pip-licenses;
+  python3.12 -m pip install --no-cache-dir --user --break-system-packages pip-licenses; \
+  # Setup npm config
+  npm config set '@deque:registry=https://agora.dequecloud.com/artifactory/api/npm/dequelabs/'; \
+  gosu ubuntu npm config set '@deque:registry=https://agora.dequecloud.com/artifactory/api/npm/dequelabs/';
 
 ADD --chown=1000:1000 --chmod=744 https://raw.githubusercontent.com/git/git/refs/tags/v${GIT_VERSION}/contrib/completion/git-prompt.sh /home/ubuntu/.bashrc.d/01-git-prompt.sh
 ADD --chown=1000:1000 --chmod=744 https://raw.githubusercontent.com/git/git/refs/tags/v${GIT_VERSION}/contrib/completion/git-prompt.sh /root/.bashrc.d/01-git-prompt.sh
