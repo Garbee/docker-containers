@@ -115,6 +115,7 @@ COPY --from=browser-installer /chromedriver_path.txt /chromedriver_path.txt
 
 ADD --chmod=0044 https://cli.github.com/packages/githubcli-archive-keyring.gpg /etc/apt/keyrings/githubcli-archive-keyring.gpg
 
+# Install system packages (cached separately)
 RUN --mount=type=cache,target=/var/cache/apt,id=apt-archives,sharing=shared \
   --mount=type=cache,target=/var/lib/apt/lists,id=apt-lists,sharing=locked \
   <<EOF
@@ -165,27 +166,43 @@ apt-get install -y --no-install-recommends \
   curl lsb-release unzip \
   openssh-client gnupg gnupg2 git gh \
   sudo gosu
-# Always have latest stable npm
+rm -rf /var/lib/apt/lists/*
+EOF
+
+# Setup sudo access
+RUN <<EOF
+set -eux
+echo "ubuntu ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers.d/ubuntu
+chmod 0440 /etc/sudoers.d/ubuntu
+EOF
+
+# Install and configure npm (cached separately)
+RUN --mount=type=cache,target=/root/.npm,id=npm-cache-${TARGETARCH},sharing=shared \
+  <<EOF
+set -eux
 npm install -g npm@latest
-# Setup Puppeteer Browser environment variables
+npm config set '@deque:registry=https://agora.dequecloud.com/artifactory/api/npm/dequelabs/'
+gosu ubuntu npm config set '@deque:registry=https://agora.dequecloud.com/artifactory/api/npm/dequelabs/'
+EOF
+
+# Setup Python virtual environment (cached separately)
+RUN --mount=type=cache,target=/root/.cache/pip,id=pip-cache-${TARGETARCH},sharing=shared \
+  <<EOF
+set -eux
+python3.12 -m venv /opt/venv
+chown -R root:ubuntu /opt/venv
+chmod -R 775 /opt/venv
+/opt/venv/bin/pip install --no-cache-dir pip-licenses autopep8 pylint
+EOF
+
+# Setup Puppeteer browser environment variables
+RUN <<EOF
+set -eux
 CHROME_PATH=$(cat /chrome_path.txt)
 echo "export CHROME_BIN=${CHROME_PATH}" >> /etc/environment
 CHROMEDRIVER_PATH=$(cat /chromedriver_path.txt)
 echo "export CHROMEDRIVER_BIN=${CHROMEDRIVER_PATH}" >> /etc/environment
 rm /chrome_path.txt /chromedriver_path.txt
-# Clean up apt caches
-rm -rf /var/lib/apt/lists/*
-# Give ubuntu user password-less sudo access
-echo "ubuntu ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers.d/ubuntu
-chmod 0440 /etc/sudoers.d/ubuntu
-# Install globally used python tools that can not be installed from apt
-python3.12 -m venv /opt/venv
-chown -R root:ubuntu /opt/venv
-chmod -R 775 /opt/venv
-/opt/venv/bin/pip install --no-cache-dir pip-licenses autopep8 pylint
-# Setup npm config
-npm config set '@deque:registry=https://agora.dequecloud.com/artifactory/api/npm/dequelabs/'
-gosu ubuntu npm config set '@deque:registry=https://agora.dequecloud.com/artifactory/api/npm/dequelabs/'
 EOF
 
 ADD --chown=1000:1000 --chmod=744 https://raw.githubusercontent.com/git/git/refs/tags/v${GIT_VERSION}/contrib/completion/git-prompt.sh /home/ubuntu/.bashrc.d/01-git-prompt.sh
