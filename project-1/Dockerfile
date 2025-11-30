@@ -65,7 +65,7 @@ SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 ENV PATH="/usr/local/lib/node_modules/bin:\
 /opt/gradle/bin:\
 /opt/java/openjdk/bin:\
-~/.local/bin:\
+/home/ubuntu/.local/bin:\
 /usr/local/bin:\
 /usr/bin:${PATH}" \
   JAVA_HOME=/opt/java/openjdk \
@@ -183,7 +183,6 @@ RUN --mount=type=cache,target=/var/cache/apt,id=apt-archives,sharing=shared \
   echo "ubuntu ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers.d/ubuntu; \
   chmod 0440 /etc/sudoers.d/ubuntu; \
   # Install globally used python tools that can't be installed from apt
-  python3.12 -m pip install --no-cache-dir --user --break-system-packages pip-licenses; \
   gosu ubuntu python3.12 -m pip install --no-cache-dir --user --break-system-packages pip-licenses; \
   # Setup npm config
   npm config set '@deque:registry=https://agora.dequecloud.com/artifactory/api/npm/dequelabs/'; \
