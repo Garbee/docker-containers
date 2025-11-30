@@ -120,7 +120,7 @@ RUN --mount=type=cache,target=/var/cache/apt,id=apt-archives,sharing=shared \
 	&& mkdir -p -m 755 /etc/apt/sources.list.d \
 	&& echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | tee /etc/apt/sources.list.d/github-cli.list > /dev/null \
 	&& apt-get update \
-  apt-get install -y --no-install-recommends \
+  && apt-get install -y --no-install-recommends \
   # Python installations
   python3.12 python3.12-venv python3.12-dev \
   python3-pip python3-full python3-autopep8 pylint \
