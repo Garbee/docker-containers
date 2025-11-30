@@ -109,7 +109,7 @@ RUN --mount=type=cache,target=/var/cache/apt,id=apt-archives,sharing=shared \
   APT_LISTCHANGES_FRONTEND=none \
   UCF_FORCE_CONFFNEW=1 \
   TZ=UTC \
-  apt-get update && apt-get install -y --no-install-recommends software-properties-common \
+  apt-get update && apt-get install -y --no-install-recommends software-properties-common && \
   add-apt-repository ppa:git-core/ppa -y; \
   (type -p wget >/dev/null || (apt update && apt install wget -y)) \
 	&& mkdir -p -m 755 /etc/apt/keyrings \
