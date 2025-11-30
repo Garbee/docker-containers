@@ -31,6 +31,9 @@ FROM base-runtime AS dev-runtime
 ARG IMAGE_VERSION
 ARG TARGETARCH
 ARG GIT_VERSION
+ARG DEBIAN_FRONTEND=noninteractive
+ARG APT_LISTCHANGES_FRONTEND=none
+ARG UCF_FORCE_CONFFNEW=1
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
@@ -48,17 +51,24 @@ ENV PATH="/usr/local/lib/node_modules/bin:\
   NPM_CONFIG_AUDIT=false \
   FZF_DEFAULT_OPTS="--height=40% --reverse --border" \
   PUPPETEER_CACHE_DIR=/browsers \
-  PUPPETEER_SKIP_DOWNLOAD=true
+  PUPPETEER_SKIP_DOWNLOAD=true \
+  TZ=UTC
 
-RUN groupadd -r node && \
-    usermod -aG node ubuntu && \
-    usermod -aG staff ubuntu && \
-    mkdir -p /usr/local/lib/node_modules && \
-    chown -R root:node /usr/local/lib/node_modules /usr/local/bin && \
-    chmod -R 775 /usr/local/lib/node_modules /usr/local/bin && \
-    mkdir -p "${PUPPETEER_CACHE_DIR}" && \
-    chown -R root:staff "${PUPPETEER_CACHE_DIR}" && \
-    chmod -R 775 "${PUPPETEER_CACHE_DIR}"
+RUN <<EOF
+groupadd -r node
+usermod -aG node ubuntu
+usermod -aG staff ubuntu
+mkdir -p /usr/local/lib/node_modules
+chown -R root:node /usr/local/lib/node_modules /usr/local/bin
+chmod -R 775 /usr/local/lib/node_modules /usr/local/bin
+mkdir -p "${PUPPETEER_CACHE_DIR}"
+chown -R root:staff "${PUPPETEER_CACHE_DIR}"
+chmod -R 775 "${PUPPETEER_CACHE_DIR}"
+mkdir -p /etc/apt/keyrings
+chmod 755 /etc/apt/keyrings
+mkdir -p /etc/apt/sources.list.d
+chmod 755 /etc/apt/sources.list.d
+EOF
 
 # Bring in toolchains/artifacts (optimized with --link)
 COPY --link --from=hadolint-src   /bin/hadolint /usr/local/bin/
@@ -76,37 +86,23 @@ COPY --from=jdk-src $JAVA_HOME $JAVA_HOME
 COPY --from=gradle-src /opt/gradle ${GRADLE_HOME}
 COPY --from=gradle-src /usr/bin/gradle /usr/bin/gradle
 
+ADD --chmod=0044 https://cli.github.com/packages/githubcli-archive-keyring.gpg /etc/apt/keyrings/githubcli-archive-keyring.gpg
+
 RUN --mount=type=cache,target=/var/cache/apt,id=apt-archives,sharing=shared \
   --mount=type=cache,target=/var/lib/apt/lists,id=apt-lists,sharing=locked \
   --mount=type=cache,target=${PUPPETEER_CACHE_DIR},id=puppeteer-browsers-${TARGETARCH},sharing=shared \
-  set -eux; \
-  DEBIAN_FRONTEND=noninteractive \
-  APT_LISTCHANGES_FRONTEND=none \
-  UCF_FORCE_CONFFNEW=1 \
-  TZ=UTC \
-  apt-get update \
-  && apt-get install -y --no-install-recommends software-properties-common \
-  && add-apt-repository ppa:git-core/ppa -y \
-  && (type -p wget >/dev/null || (apt-get update && apt-get install wget -y --no-install-recommends)) \
-  && mkdir -p /etc/apt/keyrings \
-  && chmod 755 /etc/apt/keyrings \
-  && out="$(mktemp)" \
-  && wget -nv -O "$out" https://cli.github.com/packages/githubcli-archive-keyring.gpg \
-  && cat "$out" | tee /etc/apt/keyrings/githubcli-archive-keyring.gpg > /dev/null \
-  && chmod go+r /etc/apt/keyrings/githubcli-archive-keyring.gpg \
-  && mkdir -p /etc/apt/sources.list.d \
-  && chmod 755 /etc/apt/sources.list.d \
-  && echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | tee /etc/apt/sources.list.d/github-cli.list > /dev/null \
-  && apt-get update \
-  && apt-get install -y --no-install-recommends \
-  # Python installations
+  <<EOF
+set -eux
+apt-get update
+apt-get install -y --no-install-recommends software-properties-common
+add-apt-repository ppa:git-core/ppa -y
+echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | tee /etc/apt/sources.list.d/github-cli.list > /dev/null
+apt-get update
+apt-get install -y --no-install-recommends \
   python3.12 python3.12-venv python3.12-dev \
   python3-pip \
-  # For FFMPEG
   libpulse0 \
-  # Fonts Noto (about 56MB)
   fonts-noto fonts-noto-color-emoji \
-  # Chrome/Chromium dependencies
   ca-certificates \
   fonts-liberation \
   libasound2t64 \
@@ -139,36 +135,34 @@ RUN --mount=type=cache,target=/var/cache/apt,id=apt-archives,sharing=shared \
   libxtst6 \
   wget \
   xdg-utils \
-  # Developer Experience Additions
   bash-completion fzf ripgrep bat direnv eza git-delta \
   curl lsb-release unzip \
-  # Core development needs, gh is the GitHub CLI
   openssh-client gnupg gnupg2 git gh \
-  # User privilege management
-  sudo gosu; \
-  # Always have latest stable npm
-  npm install -g npm@latest; \
-  # Setup Puppeteer Browsers
-  CHROME_PATH=$(npx -y @puppeteer/browsers install chrome@stable --path "${PUPPETEER_CACHE_DIR}" | tail -n 1 | cut -d' ' -f2); \
-  echo "export CHROME_BIN=${CHROME_PATH}" >> /etc/environment; \
-  CHROMEDRIVER_PATH=$(npx -y @puppeteer/browsers install chromedriver@stable --path "${PUPPETEER_CACHE_DIR}" | tail -n 1 | cut -d' ' -f2); \
-  echo "export CHROMEDRIVER_BIN=${CHROMEDRIVER_PATH}" >> /etc/environment; \
-  # Clean up apt caches
-  rm -rf /var/lib/apt/lists/*; \
-  # Give ubuntu user password-less sudo access
-  echo "ubuntu ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers.d/ubuntu; \
-  chmod 0440 /etc/sudoers.d/ubuntu; \
-  # Install globally used python tools that can't be installed from apt
-  python3.12 -m venv /opt/venv && \
-  chown -R root:ubuntu /opt/venv && \
-  chmod -R 775 /opt/venv && \
-  /opt/venv/bin/pip install --no-cache-dir pip-licenses autopep8 pylint; \
-  # Setup npm config
-  npm config set '@deque:registry=https://agora.dequecloud.com/artifactory/api/npm/dequelabs/'; \
-  gosu ubuntu npm config set '@deque:registry=https://agora.dequecloud.com/artifactory/api/npm/dequelabs/';
+  sudo gosu
+# Always have latest stable npm
+npm install -g npm@latest
+# Setup Puppeteer Browsers
+CHROME_PATH=$(npx -y @puppeteer/browsers install chrome@stable --path "${PUPPETEER_CACHE_DIR}" | tail -n 1 | cut -d' ' -f2)
+echo "export CHROME_BIN=${CHROME_PATH}" >> /etc/environment
+CHROMEDRIVER_PATH=$(npx -y @puppeteer/browsers install chromedriver@stable --path "${PUPPETEER_CACHE_DIR}" | tail -n 1 | cut -d' ' -f2)
+echo "export CHROMEDRIVER_BIN=${CHROMEDRIVER_PATH}" >> /etc/environment
+# Clean up apt caches
+rm -rf /var/lib/apt/lists/*
+# Give ubuntu user password-less sudo access
+echo "ubuntu ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers.d/ubuntu
+chmod 0440 /etc/sudoers.d/ubuntu
+# Install globally used python tools that can not be installed from apt
+python3.12 -m venv /opt/venv
+chown -R root:ubuntu /opt/venv
+chmod -R 775 /opt/venv
+/opt/venv/bin/pip install --no-cache-dir pip-licenses autopep8 pylint
+# Setup npm config
+npm config set '@deque:registry=https://agora.dequecloud.com/artifactory/api/npm/dequelabs/'
+gosu ubuntu npm config set '@deque:registry=https://agora.dequecloud.com/artifactory/api/npm/dequelabs/'
+EOF
 
 ADD --chown=1000:1000 --chmod=744 https://raw.githubusercontent.com/git/git/refs/tags/v${GIT_VERSION}/contrib/completion/git-prompt.sh /home/ubuntu/.bashrc.d/01-git-prompt.sh
-ADD --chown=1000:1000 --chmod=744 https://raw.githubusercontent.com/git/git/refs/tags/v${GIT_VERSION}/contrib/completion/git-prompt.sh /root/.bashrc.d/01-git-prompt.sh
+ADD --chown=0:0 --chmod=744 https://raw.githubusercontent.com/git/git/refs/tags/v${GIT_VERSION}/contrib/completion/git-prompt.sh /root/.bashrc.d/01-git-prompt.sh
 
 WORKDIR /workspaces
 
