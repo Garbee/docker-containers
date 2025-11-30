@@ -26,6 +26,28 @@ FROM ghcr.io/jqlang/jq:${JQ_VERSION} AS jq-src
 # Just setting this one up for re-use so it only needs to be updated in one place.
 FROM ubuntu:noble-20251013 AS base-runtime
 
+# ---------- Browser installation stage ----------
+FROM node-src AS browser-installer
+ARG TARGETARCH
+ARG PUPPETEER_CACHE_DIR=/browsers
+ARG BROWSER_CACHE=/browser-cache
+
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
+
+RUN --mount=type=cache,target=${BROWSER_CACHE},id=puppeteer-browsers-${TARGETARCH},sharing=shared \
+  <<EOF
+set -eux
+# Install to cache directory first
+CHROME_PATH=$(npx -y @puppeteer/browsers install chrome@stable --path "${BROWSER_CACHE}" | tail -n 1 | cut -d' ' -f2)
+CHROMEDRIVER_PATH=$(npx -y @puppeteer/browsers install chromedriver@stable --path "${BROWSER_CACHE}" | tail -n 1 | cut -d' ' -f2)
+# Copy from cache to permanent location
+mkdir -p "${PUPPETEER_CACHE_DIR}"
+cp -r "${BROWSER_CACHE}"/* "${PUPPETEER_CACHE_DIR}"/
+# Save paths (adjust to use permanent location)
+echo "${CHROME_PATH/${BROWSER_CACHE}/${PUPPETEER_CACHE_DIR}}" > /chrome_path.txt
+echo "${CHROMEDRIVER_PATH/${BROWSER_CACHE}/${PUPPETEER_CACHE_DIR}}" > /chromedriver_path.txt
+EOF
+
 # ---------- Final dev runtime ----------
 FROM base-runtime AS dev-runtime
 ARG IMAGE_VERSION
@@ -86,11 +108,15 @@ COPY --from=jdk-src $JAVA_HOME $JAVA_HOME
 COPY --from=gradle-src /opt/gradle ${GRADLE_HOME}
 COPY --from=gradle-src /usr/bin/gradle /usr/bin/gradle
 
+# Copy browsers from browser-installer stage
+COPY --link --from=browser-installer ${PUPPETEER_CACHE_DIR} ${PUPPETEER_CACHE_DIR}
+COPY --from=browser-installer /chrome_path.txt /chrome_path.txt
+COPY --from=browser-installer /chromedriver_path.txt /chromedriver_path.txt
+
 ADD --chmod=0044 https://cli.github.com/packages/githubcli-archive-keyring.gpg /etc/apt/keyrings/githubcli-archive-keyring.gpg
 
 RUN --mount=type=cache,target=/var/cache/apt,id=apt-archives,sharing=shared \
   --mount=type=cache,target=/var/lib/apt/lists,id=apt-lists,sharing=locked \
-  --mount=type=cache,target=${PUPPETEER_CACHE_DIR},id=puppeteer-browsers-${TARGETARCH},sharing=shared \
   <<EOF
 set -eux
 apt-get update
@@ -141,11 +167,12 @@ apt-get install -y --no-install-recommends \
   sudo gosu
 # Always have latest stable npm
 npm install -g npm@latest
-# Setup Puppeteer Browsers
-CHROME_PATH=$(npx -y @puppeteer/browsers install chrome@stable --path "${PUPPETEER_CACHE_DIR}" | tail -n 1 | cut -d' ' -f2)
+# Setup Puppeteer Browser environment variables
+CHROME_PATH=$(cat /chrome_path.txt)
 echo "export CHROME_BIN=${CHROME_PATH}" >> /etc/environment
-CHROMEDRIVER_PATH=$(npx -y @puppeteer/browsers install chromedriver@stable --path "${PUPPETEER_CACHE_DIR}" | tail -n 1 | cut -d' ' -f2)
+CHROMEDRIVER_PATH=$(cat /chromedriver_path.txt)
 echo "export CHROMEDRIVER_BIN=${CHROMEDRIVER_PATH}" >> /etc/environment
+rm /chrome_path.txt /chromedriver_path.txt
 # Clean up apt caches
 rm -rf /var/lib/apt/lists/*
 # Give ubuntu user password-less sudo access
