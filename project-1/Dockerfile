@@ -11,7 +11,6 @@ ARG ACTIONLINT_VERSION=1.7.8
 ARG SHFMT_VERSION=3.12.0
 ARG YQ_VERSION=4.48.1
 ARG ZIZMOR_VERSION=1.16.3
-ARG GIT_VERSION=2.51.2
 ARG JQ_VERSION=1.8.1
 
 FROM node:${NODE_VERSION}-bookworm-slim AS node-src
@@ -52,7 +51,6 @@ EOF
 FROM base-runtime AS dev-runtime
 ARG IMAGE_VERSION
 ARG TARGETARCH
-ARG GIT_VERSION
 ARG DEBIAN_FRONTEND=noninteractive
 ARG APT_LISTCHANGES_FRONTEND=none
 ARG UCF_FORCE_CONFFNEW=1
@@ -205,9 +203,6 @@ CHROMEDRIVER_PATH=$(cat /chromedriver_path.txt)
 echo "export CHROMEDRIVER_BIN=${CHROMEDRIVER_PATH}" >> /etc/environment
 rm /chrome_path.txt /chromedriver_path.txt
 EOF
-
-ADD --chown=1000:1000 --chmod=744 https://raw.githubusercontent.com/git/git/refs/tags/v${GIT_VERSION}/contrib/completion/git-prompt.sh /home/ubuntu/.bashrc.d/01-git-prompt.sh
-ADD --chown=0:0 --chmod=744 https://raw.githubusercontent.com/git/git/refs/tags/v${GIT_VERSION}/contrib/completion/git-prompt.sh /root/.bashrc.d/01-git-prompt.sh
 
 WORKDIR /workspaces
 

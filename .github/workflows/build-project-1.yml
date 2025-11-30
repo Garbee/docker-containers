@@ -23,8 +23,29 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  versions:
+    name: Get Latest Tool versions
+    runs-on: ubuntu-24.04-arm
+    outputs:
+      zizmor: ${{ steps.get-versions.outputs.zizmor }}
+      shfmt: ${{ steps.get-versions.outputs.shfmt }}
+      yq: ${{ steps.get-versions.outputs.yq }}
+      jq: ${{ steps.get-versions.outputs.jq }}
+      gradle: ${{ steps.get-versions.outputs.gradle }}
+      actionlint: ${{ steps.get-versions.outputs.actionlint }}
+      hadolint: ${{ steps.get-versions.outputs.hadolint }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
+      - name: Get latest versions
+        id: get-versions
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: ./bin/get-latest-tool-versions.sh
   # The build job builds the Docker image for each platform specified in the matrix.
   build:
+    needs:
+      - versions
     strategy:
       fail-fast: false
       matrix:
@@ -142,6 +163,13 @@ jobs:
           annotations: ${{ steps.meta.outputs.annotations }}
           build-args: |
             NODE_VERSION=${{ matrix.node-version }}
+            SHFMT_VERSION=${{ needs.versions.outputs.shfmt }}
+            YQ_VERSION=${{ needs.versions.outputs.yq }}
+            ZIZMOR_VERSION=${{ needs.versions.outputs.zizmor }}
+            JQ_VERSION=${{ needs.versions.outputs.jq }}
+            GRADLE_VERSION=${{ needs.versions.outputs.gradle }}
+            ACTIONLINT_VERSION=${{ needs.versions.outputs.actionlint }}
+            HADOLINT_VERSION=${{ needs.versions.outputs.hadolint }}
           outputs: type=image,name=${{ steps.prepare.outputs.GHCR_IMAGE }},push-by-digest=true,name-canonical=true,push=true,oci-mediatypes=true
 
 
