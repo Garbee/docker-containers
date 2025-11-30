@@ -63,6 +63,7 @@ ARG GIT_VERSION
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
 ENV PATH="/usr/local/lib/node_modules/bin:\
+/opt/venv/bin:\
 /opt/gradle/bin:\
 /opt/java/openjdk/bin:\
 /home/ubuntu/.local/bin:\
@@ -183,9 +184,10 @@ RUN --mount=type=cache,target=/var/cache/apt,id=apt-archives,sharing=shared \
   echo "ubuntu ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers.d/ubuntu; \
   chmod 0440 /etc/sudoers.d/ubuntu; \
   # Install globally used python tools that can't be installed from apt
-  python3.12 -m pip config set global.break-system-packages true; \
-  gosu ubuntu python3.12 -m pip config set global.break-system-packages true; \
-  gosu ubuntu python3.12 -m pip install --no-cache-dir --user pip-licenses autopep8 pylint; \
+  python3.12 -m venv /opt/venv && \
+  chown -R root:ubuntu /opt/venv && \
+  chmod -R 775 /opt/venv && \
+  /opt/venv/bin/pip install --no-cache-dir pip-licenses autopep8 pylint; \
   # Setup npm config
   npm config set '@deque:registry=https://agora.dequecloud.com/artifactory/api/npm/dequelabs/'; \
   gosu ubuntu npm config set '@deque:registry=https://agora.dequecloud.com/artifactory/api/npm/dequelabs/';
