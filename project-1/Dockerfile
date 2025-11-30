@@ -165,7 +165,8 @@ apt-get install -y --no-install-recommends \
   bash-completion fzf ripgrep bat direnv eza git-delta \
   curl lsb-release unzip \
   openssh-client gnupg gnupg2 git gh \
-  sudo gosu
+  sudo gosu \
+  xvfb
 rm -rf /var/lib/apt/lists/*
 EOF
 
