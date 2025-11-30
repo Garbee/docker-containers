@@ -109,16 +109,17 @@ RUN --mount=type=cache,target=/var/cache/apt,id=apt-archives,sharing=shared \
   APT_LISTCHANGES_FRONTEND=none \
   UCF_FORCE_CONFFNEW=1 \
   TZ=UTC \
+  apt-get update && apt-get install -y --no-install-recommends software-properties-common \
   add-apt-repository ppa:git-core/ppa -y; \
   (type -p wget >/dev/null || (apt update && apt install wget -y)) \
-	&& sudo mkdir -p -m 755 /etc/apt/keyrings \
+	&& mkdir -p -m 755 /etc/apt/keyrings \
 	&& out="$(mktemp)" && wget -nv -O "$out" https://cli.github.com/packages/githubcli-archive-keyring.gpg \
 	&& cat $out | tee /etc/apt/keyrings/githubcli-archive-keyring.gpg > /dev/null \
 	&& chmod go+r /etc/apt/keyrings/githubcli-archive-keyring.gpg \
 	&& mkdir -p -m 755 /etc/apt/sources.list.d \
 	&& echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | tee /etc/apt/sources.list.d/github-cli.list > /dev/null \
 	&& apt-get update \
-  apt-get install -y --no-install-recommends software-properties-common \
+  apt-get install -y --no-install-recommends \
   # Python installations
   python3.12 python3.12-venv python3.12-dev \
   python3-pip python3-full python3-autopep8 pylint \
