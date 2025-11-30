@@ -65,6 +65,7 @@ SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 ENV PATH="/usr/local/lib/node_modules/bin:\
 /opt/gradle/bin:\
 /opt/java/openjdk/bin:\
+~/.local/bin:\
 /usr/local/bin:\
 /usr/bin:${PATH}" \
   JAVA_HOME=/opt/java/openjdk \
@@ -73,7 +74,8 @@ ENV PATH="/usr/local/lib/node_modules/bin:\
   NPM_CONFIG_FUND=false \
   NPM_CONFIG_AUDIT=false \
   FZF_DEFAULT_OPTS="--height=40% --reverse --border" \
-  PUPPETEER_CACHE_DIR=/browsers
+  PUPPETEER_CACHE_DIR=/browsers \
+  PUPPETEER_SKIP_DOWNLOAD=true
 
 RUN groupadd -r node && \
     usermod -aG node ubuntu && \

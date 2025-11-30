@@ -1,6 +1,4 @@
-# This workflow builds a multi-arch Docker image using GitHub Actions and separated Github Runners with native support for ARM64 and AMD64 architectures, without using QEMU emulation.
-# It uses Docker Buildx to build and push the image to GitHub Container Registry (GHCR).
-name: Build multi arch Docker Image with separate Github Runners
+name: Build Project 1
 
 on:
   workflow_dispatch:
@@ -11,11 +9,8 @@ on:
     branches:
       - main
     paths:
-      - '**/Dockerfile'
-      - '.github/workflows/build.yml'
-
-env:
-  REPOSITORY: /garbee
+      - 'project-1/Dockerfile'
+      - '.github/workflows/build-project-1.yml'
 
 permissions:
   # Global permissions for the workflow, which can be overridden at the job level
