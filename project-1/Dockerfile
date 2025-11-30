@@ -184,6 +184,7 @@ RUN --mount=type=cache,target=/var/cache/apt,id=apt-archives,sharing=shared \
   chmod 0440 /etc/sudoers.d/ubuntu; \
   # Install globally used python tools that can't be installed from apt
   python3.12 -m pip install --no-cache-dir --user --break-system-packages pip-licenses; \
+  gosu ubuntu python3.12 -m pip install --no-cache-dir --user --break-system-packages pip-licenses; \
   # Setup npm config
   npm config set '@deque:registry=https://agora.dequecloud.com/artifactory/api/npm/dequelabs/'; \
   gosu ubuntu npm config set '@deque:registry=https://agora.dequecloud.com/artifactory/api/npm/dequelabs/';
