@@ -12,6 +12,7 @@ ARG SHFMT_VERSION=3.12.0
 ARG YQ_VERSION=4.48.1
 ARG ZIZMOR_VERSION=1.16.3
 ARG GIT_VERSION=2.51.2
+ARG JQ_VERSION=1.8.1
 
 FROM node:${NODE_VERSION}-bookworm-slim AS node-src
 FROM gradle:${GRADLE_VERSION}-jdk21-noble AS gradle-src
@@ -21,38 +22,9 @@ FROM rhysd/actionlint:${ACTIONLINT_VERSION} AS actionlint-src
 FROM mvdan/shfmt:v${SHFMT_VERSION} AS shfmt-src
 FROM mikefarah/yq:${YQ_VERSION} AS yq-src
 FROM ghcr.io/zizmorcore/zizmor:${ZIZMOR_VERSION} AS zizmor-src
+FROM ghcr.io/jqlang/jq:${JQ_VERSION} AS jq-src
 # Just setting this one up for re-use so it only needs to be updated in one place.
-FROM ubuntu:noble-20251001 AS base-runtime
-
-# ---------- JQ ----------
-FROM busybox:1.37.0-glibc AS jq-dist
-ARG JQ_VERSION=1.8.1
-ARG JQ_X64_CHECKSUM=020468de7539ce70ef1bceaf7cde2e8c4f2ca6c3afb84642aabc5c97d9fc2a0d
-ARG JQ_ARM64_CHECKSUM=6bc62f25981328edd3cfcfe6fe51b073f2d7e7710d7ef7fcdac28d4e384fc3d4
-ARG JQ_CHECKSUMS_CHECKSUM=43580cdaf04c3ac63b9baa7fe68f28c79c5e30c3cc4fc594f87daf520626bbfa
-ARG TARGETARCH
-SHELL ["/bin/ash", "-o", "pipefail", "-c"]
-WORKDIR /tmp
-
-ADD --checksum=sha256:${JQ_X64_CHECKSUM} \
-  https://github.com/jqlang/jq/releases/download/jq-${JQ_VERSION}/jq-linux64 /tmp/jq-linux64
-ADD --checksum=sha256:${JQ_ARM64_CHECKSUM} \
-  https://github.com/jqlang/jq/releases/download/jq-${JQ_VERSION}/jq-linux-arm64 /tmp/jq-linux-arm64
-ADD --checksum=sha256:${JQ_CHECKSUMS_CHECKSUM} \
-  https://github.com/jqlang/jq/releases/download/jq-${JQ_VERSION}/sha256sum.txt /tmp/sha256sum.txt
-
-RUN set -eux; \
-  case "${TARGETARCH:-amd64}" in \
-  amd64) JQ_FILE="jq-linux64" ;; \
-  arm64) JQ_FILE="jq-linux-arm64" ;; \
-  *) echo "Unsupported architecture: ${TARGETARCH}. Only amd64 and arm64 are supported." >&2; exit 1 ;; \
-  esac; \
-  # Verify only the selected asset using the checksums file
-  grep -E "[[:space:]]${JQ_FILE}\$" sha256sum.txt | sha256sum -c -; \
-  # Stage binary
-  install -Dm0755 "${JQ_FILE}" /opt/jq/jq; \
-  # Remove unneeded files from final image
-  rm -rf /tmp/*;
+FROM ubuntu:noble-20251013 AS base-runtime
 
 # ---------- Final dev runtime ----------
 FROM base-runtime AS dev-runtime
@@ -92,7 +64,7 @@ RUN groupadd -r node && \
 COPY --link --from=hadolint-src   /bin/hadolint /usr/local/bin/
 # Actionlint also has shellcheck in its bin
 COPY --link --from=actionlint-src  /usr/local/bin/ /usr/local/bin/
-COPY --link --from=jq-dist         /opt/jq/jq     /usr/local/bin/jq
+COPY --link --from=jq-src          /jq     /usr/local/bin/jq
 COPY --link --from=yq-src          /usr/bin/yq     /usr/local/bin/yq
 COPY --link --from=zizmor-src      /usr/bin/zizmor /usr/local/bin/zizmor
 COPY --link --from=shfmt-src       /bin/              /usr/local/bin/
@@ -115,14 +87,17 @@ RUN --mount=type=cache,target=/var/cache/apt,id=apt-archives,sharing=shared \
   apt-get update \
   && apt-get install -y --no-install-recommends software-properties-common \
   && add-apt-repository ppa:git-core/ppa -y \
-  && (type -p wget >/dev/null || (apt update && apt install wget -y)) \
-	&& mkdir -p -m 755 /etc/apt/keyrings \
-	&& out="$(mktemp)" && wget -nv -O "$out" https://cli.github.com/packages/githubcli-archive-keyring.gpg \
-	&& cat $out | tee /etc/apt/keyrings/githubcli-archive-keyring.gpg > /dev/null \
-	&& chmod go+r /etc/apt/keyrings/githubcli-archive-keyring.gpg \
-	&& mkdir -p -m 755 /etc/apt/sources.list.d \
-	&& echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | tee /etc/apt/sources.list.d/github-cli.list > /dev/null \
-	&& apt-get update \
+  && (type -p wget >/dev/null || (apt-get update && apt-get install wget -y --no-install-recommends)) \
+  && mkdir -p /etc/apt/keyrings \
+  && chmod 755 /etc/apt/keyrings \
+  && out="$(mktemp)" \
+  && wget -nv -O "$out" https://cli.github.com/packages/githubcli-archive-keyring.gpg \
+  && cat "$out" | tee /etc/apt/keyrings/githubcli-archive-keyring.gpg > /dev/null \
+  && chmod go+r /etc/apt/keyrings/githubcli-archive-keyring.gpg \
+  && mkdir -p /etc/apt/sources.list.d \
+  && chmod 755 /etc/apt/sources.list.d \
+  && echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | tee /etc/apt/sources.list.d/github-cli.list > /dev/null \
+  && apt-get update \
   && apt-get install -y --no-install-recommends \
   # Python installations
   python3.12 python3.12-venv python3.12-dev \
