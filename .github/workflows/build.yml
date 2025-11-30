@@ -215,7 +215,7 @@ jobs:
               ;;
             push)
               RUN_TYPE="push"
-              UNIQUE="$SHA"
+              UNIQUE="${SHA:0:7}"
               ;;
             workflow_dispatch)
               RUN_TYPE="manual"
