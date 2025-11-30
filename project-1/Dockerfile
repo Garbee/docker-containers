@@ -109,7 +109,7 @@ RUN --mount=type=cache,target=/var/cache/apt,id=apt-archives,sharing=shared \
   APT_LISTCHANGES_FRONTEND=none \
   UCF_FORCE_CONFFNEW=1 \
   TZ=UTC \
-  sudo add-apt-repository ppa:git-core/ppa -y; \
+  add-apt-repository ppa:git-core/ppa -y; \
   (type -p wget >/dev/null || (apt update && apt install wget -y)) \
 	&& sudo mkdir -p -m 755 /etc/apt/keyrings \
 	&& out="$(mktemp)" && wget -nv -O "$out" https://cli.github.com/packages/githubcli-archive-keyring.gpg \
