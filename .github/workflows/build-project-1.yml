@@ -40,7 +40,7 @@ jobs:
       - name: Get latest versions
         id: get-versions
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: ./bin/get-latest-tool-versions.sh
   # The build job builds the Docker image for each platform specified in the matrix.
   build:
