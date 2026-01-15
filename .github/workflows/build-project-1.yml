@@ -25,7 +25,7 @@ concurrency:
 jobs:
   versions:
     name: Get Latest Tool versions
-    runs-on: ubuntu-24.04-arm
+    runs-on: ubuntu-slim
     outputs:
       zizmor: ${{ steps.get-versions.outputs.zizmor }}
       shfmt: ${{ steps.get-versions.outputs.shfmt }}
@@ -57,24 +57,6 @@ jobs:
           - 22
           - 24
 
-    permissions:
-      # Permissions for the build job, which can be overridden at the step level
-      # The permissions are set to allow the job to write to the GitHub Container Registry (GHCR) and read from the repository.
-      attestations: write
-      actions: read
-      checks: write
-      contents: write
-      deployments: none
-      id-token: write
-      issues: read
-      discussions: read
-      packages: write
-      pages: none
-      pull-requests: read
-      repository-projects: read
-      security-events: read
-      statuses: read
-
     runs-on: ${{ matrix.platform == 'linux/amd64' && 'ubuntu-24.04' || matrix.platform == 'linux/arm64' && 'ubuntu-24.04-arm' }}
     # The job runs on different runners based on the platform.
     # For linux/amd64, it runs on the latest Ubuntu runner.
@@ -98,11 +80,11 @@ jobs:
           OWNER: ${{ github.repository_owner }}
           NODE_VERSION: ${{ matrix.node-version }}
         run: |
-          echo "PLATFORM_PAIR=${PLATFORM//\//-}" >> $GITHUB_OUTPUT
+          echo "PLATFORM_PAIR=${PLATFORM//\//-}" >> "$GITHUB_OUTPUT"
           LOWER_OWNER=$(echo "$OWNER" | tr '[:upper:]' '[:lower:]')
-          echo "GHCR_IMAGE=ghcr.io/$LOWER_OWNER/project-1" >> $GITHUB_OUTPUT
+          echo "GHCR_IMAGE=ghcr.io/$LOWER_OWNER/project-1" >> "$GITHUB_OUTPUT"
           # Set node version suffix for artifact naming
-          echo "NODE_SUFFIX=-node${NODE_VERSION}" >> $GITHUB_OUTPUT
+          echo "NODE_SUFFIX=-node${NODE_VERSION}" >> "$GITHUB_OUTPUT"
       - name: Checkout
         uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
         # This step checks out the code from the repository.
@@ -178,8 +160,7 @@ jobs:
         # The digest is used to uniquely identify the built image and can be used for further processing or verification.
         run: |
           mkdir -p /tmp/digests
-          digest="$DIGEST"
-          touch "/tmp/digests/${digest#sha256:}"
+          touch "/tmp/digests/${DIGEST#sha256:}"
 
       - name: Upload digest
         # This step uploads the digest file to the GitHub Actions artifact storage.
@@ -207,20 +188,10 @@ jobs:
           - 24
 
     permissions:
-      attestations: write
-      actions: read
-      checks: read
-      contents: read
-      deployments: none
-      id-token: write
-      issues: read
-      discussions: read
-      packages: write
-      pages: none
-      pull-requests: read
-      repository-projects: read
-      security-events: read
-      statuses: read
+      attestations: write # Required to provide attestations for the built images.
+      contents: read # Ability to clone the repository.
+      id-token: write # Required to publish to GHCR.
+      packages: write # Ability to publish packages to GHCR.
 
     needs:
       - build
@@ -233,8 +204,8 @@ jobs:
           NODE_VERSION: ${{ matrix.node-version }}
         run: |
           # Set node version suffix for artifact pattern and tags
-          echo "NODE_SUFFIX=-node${NODE_VERSION}" >> $GITHUB_OUTPUT
-          echo "NODE_TAG_SUFFIX=-node${NODE_VERSION}" >> $GITHUB_OUTPUT
+          echo "NODE_SUFFIX=-node${NODE_VERSION}" >> "$GITHUB_OUTPUT"
+          echo "NODE_TAG_SUFFIX=-node${NODE_VERSION}" >> "$GITHUB_OUTPUT"
       - name: Download digests
         uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6.0.0
         with:
@@ -275,7 +246,7 @@ jobs:
           TAG="${YEAR_WEEK}-${RUN_TYPE}-${UNIQUE}${NODE_SUFFIX}"
 
           echo "Docker Tag: $TAG"
-          echo "TAG=$TAG" >> $GITHUB_OUTPUT
+          echo "TAG=$TAG" >> "$GITHUB_OUTPUT"
 
       - name: Docker meta
         # This step generates metadata for the Docker image.
@@ -318,7 +289,7 @@ jobs:
         # The timestamp is used for annotating the Docker manifest list.
         id: timestamp
         run: |
-          echo "timestamp=$(date -u +"%Y-%m-%dT%H:%M:%SZ")" >> $GITHUB_OUTPUT
+          echo "timestamp=$(date -u +"%Y-%m-%dT%H:%M:%SZ")" >> "$GITHUB_OUTPUT"
 
       - name: Create manifest list and pushes
         # This step creates a manifest list for the Docker images built for different platforms.
@@ -331,12 +302,12 @@ jobs:
         continue-on-error: true
         run: |
               docker buildx imagetools create \
-                $(jq -cr '.tags | map("-t " + .) | join(" ")' <<< "$DOCKER_METADATA_OUTPUT_JSON") \
+                "$(jq -cr '.tags | map("-t " + .) | join(" ")' <<< "$DOCKER_METADATA_OUTPUT_JSON")" \
                 --annotation='index:org.opencontainers.image.description=${{ github.event.repository.description }}' \
                 --annotation='index:org.opencontainers.image.created=${{ steps.timestamp.outputs.timestamp }}' \
                 --annotation='index:org.opencontainers.image.url=${{ github.event.repository.url }}' \
                 --annotation='index:org.opencontainers.image.source=${{ github.event.repository.url }}' \
-                $(printf '${{ needs.build.outputs.GHCR_IMAGE }}@sha256:%s ' *)
+                "$(for f in *; do printf '%s ' "${{ needs.build.outputs.GHCR_IMAGE }}@sha256:${f}"; done)"
 
       - name: Create manifest list and push without annotations
         # This step creates a manifest list for the Docker images built for different platforms.
@@ -346,8 +317,8 @@ jobs:
         if: steps.manifest-annotate.outcome == 'failure'
         working-directory: /tmp/digests
         run: |
-              docker buildx imagetools create  $(jq -cr '.tags | map("-t " + .) | join(" ")' <<< "$DOCKER_METADATA_OUTPUT_JSON") \
-                $(printf '${{ needs.build.outputs.GHCR_IMAGE }}@sha256:%s ' *)
+              docker buildx imagetools create  "$(jq -cr '.tags | map("-t " + .) | join(" ")' <<< "$DOCKER_METADATA_OUTPUT_JSON")" \
+                "$(for f in *; do printf '%s ' "${{ needs.build.outputs.GHCR_IMAGE }}@sha256:${f}"; done)"
 
       - name: Inspect image
         # This step inspects the created manifest list to verify its contents.
