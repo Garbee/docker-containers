@@ -51,6 +51,13 @@ jobs:
   build:
     needs:
       - versions
+    
+    permissions:
+      attestations: write # Required to provide attestations for the built images.
+      contents: read # Ability to clone the repository.
+      id-token: write # Required to publish to GHCR.
+      packages: write # Ability to publish packages to GHCR.
+    
     strategy:
       fail-fast: false
       matrix:
@@ -186,6 +193,12 @@ jobs:
     name: Merge Docker manifests (Node ${{ matrix.node-version }})
     runs-on: ubuntu-latest
 
+    permissions:
+      attestations: write # Required to provide attestations for the built images.
+      contents: read # Ability to clone the repository.
+      id-token: write # Required to publish to GHCR.
+      packages: write # Ability to publish packages to GHCR.
+
     strategy:
       fail-fast: false
       matrix:
@@ -193,12 +206,6 @@ jobs:
           - 20
           - 22
           - 24
-
-    permissions:
-      attestations: write # Required to provide attestations for the built images.
-      contents: read # Ability to clone the repository.
-      id-token: write # Required to publish to GHCR.
-      packages: write # Ability to publish packages to GHCR.
 
     needs:
       - build
