@@ -81,7 +81,7 @@ jobs:
     # For linux/arm64, it runs on an Ubuntu 24.04 ARM runner.
     # The runner is selected based on the platform specified in the matrix.
 
-    name: Build project-1 for ${{ matrix.platform }} (Node ${{ matrix.node-version || 'default' }})
+    name: Build project-1 for ${{ matrix.platform }} (Node ${{ matrix.node-version }})
 
     outputs:
       GHCR_IMAGE: ${{ steps.prepare.outputs.GHCR_IMAGE }}
@@ -102,11 +102,7 @@ jobs:
           LOWER_OWNER=$(echo "$OWNER" | tr '[:upper:]' '[:lower:]')
           echo "GHCR_IMAGE=ghcr.io/$LOWER_OWNER/project-1" >> $GITHUB_OUTPUT
           # Set node version suffix for artifact naming
-          if [ -z "$NODE_VERSION" ]; then
-            echo "NODE_SUFFIX=" >> $GITHUB_OUTPUT
-          else
-            echo "NODE_SUFFIX=-node${NODE_VERSION}" >> $GITHUB_OUTPUT
-          fi
+          echo "NODE_SUFFIX=-node${NODE_VERSION}" >> $GITHUB_OUTPUT
       - name: Checkout
         uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
         # This step checks out the code from the repository.
@@ -199,7 +195,7 @@ jobs:
 
   merge:
     # This job merges the Docker manifests for the different platforms built in the previous job.
-    name: Merge Docker manifests (Node ${{ matrix.node-version || 'default' }})
+    name: Merge Docker manifests (Node ${{ matrix.node-version }})
     runs-on: ubuntu-latest
 
     strategy:
@@ -237,13 +233,8 @@ jobs:
           NODE_VERSION: ${{ matrix.node-version }}
         run: |
           # Set node version suffix for artifact pattern and tags
-          if [ -z "$NODE_VERSION" ]; then
-            echo "NODE_SUFFIX=" >> $GITHUB_OUTPUT
-            echo "NODE_TAG_SUFFIX=" >> $GITHUB_OUTPUT
-          else
-            echo "NODE_SUFFIX=-node${NODE_VERSION}" >> $GITHUB_OUTPUT
-            echo "NODE_TAG_SUFFIX=-node${NODE_VERSION}" >> $GITHUB_OUTPUT
-          fi
+          echo "NODE_SUFFIX=-node${NODE_VERSION}" >> $GITHUB_OUTPUT
+          echo "NODE_TAG_SUFFIX=-node${NODE_VERSION}" >> $GITHUB_OUTPUT
       - name: Download digests
         uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6.0.0
         with:
