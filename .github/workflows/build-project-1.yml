@@ -328,22 +328,22 @@ jobs:
           docker buildx imagetools create \
             $(jq -r '.tags | map("-t " + .) | join(" ")' <<< "$DOCKER_METADATA_OUTPUT_JSON") \
             --annotation='index:org.opencontainers.image.description=Development container with Node.js, Java, Gradle, Python, and browser testing tools' \
-            --annotation='index:org.opencontainers.image.created=${STEPS_TIMESTAMP_OUTPUTS_TIMESTAMP}' \
+            --annotation='index: org.opencontainers.image.created=$STEPS_TIMESTAMP_OUTPUTS_TIMESTAMP' \
             --annotation='index:org.opencontainers.image.url=https://github.com/garbee/docker-containers' \
             --annotation='index:org.opencontainers.image.source=https://github.com/garbee/docker-containers' \
-            --annotation='index:org.opencontainers.image.licenses=CC-PDM-1.0' \
-            $(for f in *; do printf '%s ' "${NEEDS_BUILD_OUTPUTS_GHCR_IMAGE}@sha256:${f}"; done)
+            --annotation='index:org. opencontainers.image.licenses=CC-PDM-1.0' \
+            $(for f in *; do printf '%s ' "$NEEDS_BUILD_OUTPUTS_GHCR_IMAGE@sha256:${f}"; done)
 
+      # This step inspects the created manifest list to verify its contents.
+      # It uses the docker buildx imagetools inspect command to display information about the manifest list.
+      # The inspection output will show the platforms and tags associated with the manifest list.
       - name: Inspect image
-        # This step inspects the created manifest list to verify its contents.
-        # It uses the docker buildx imagetools inspect command to display information about the manifest list.
-        # The inspection output will show the platforms and tags associated with the manifest list.
         id: inspect
         env:
           NEEDS_BUILD_OUTPUTS_GHCR_IMAGE: ${{ needs.build.outputs.GHCR_IMAGE }}
           STEPS_META_OUTPUTS_VERSION: ${{ steps.meta.outputs.version }}
         run: |
-          docker buildx imagetools inspect '${NEEDS_BUILD_OUTPUTS_GHCR_IMAGE}:${STEPS_META_OUTPUTS_VERSION}'
+          docker buildx imagetools inspect "$NEEDS_BUILD_OUTPUTS_GHCR_IMAGE: $STEPS_META_OUTPUTS_VERSION"
 
       - name: Delete Artifacts
         uses: geekyeggo/delete-artifact@f275313e70c08f6120db482d7a6b98377786765b # v5.1.0
