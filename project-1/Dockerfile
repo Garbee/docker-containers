@@ -55,6 +55,9 @@ ARG DEBIAN_FRONTEND=noninteractive
 ARG APT_LISTCHANGES_FRONTEND=none
 ARG UCF_FORCE_CONFFNEW=1
 
+LABEL org.opencontainers.image.description="Development container with Node.js, Java, Gradle, Python, and browser testing tools" \
+      org.opencontainers.image.licenses="CC-PDM-1.0"
+
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
 ENV PATH="/usr/local/lib/node_modules/bin:\
