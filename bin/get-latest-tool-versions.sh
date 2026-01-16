@@ -50,154 +50,57 @@ get_previous_release() {
     sed -E 's/[^0-9.]+//g'
 }
 
-# Get the latest zizmor version and validate it exists on GHCR
-ZIZMOR_VERSION=$(get_current_release zizmorcore/zizmor)
-ZIZMOR_IMAGE="ghcr.io/zizmorcore/zizmor:${ZIZMOR_VERSION}"
+# Resolve a version with Docker image validation and fallback to previous release
+resolve_version_with_fallback() {
+  local repo=$1
+  local image_template=$2
+  local __out_var=$3
 
-# Check if the latest zizmor version exists on GHCR
-if check_docker_image "$ZIZMOR_IMAGE"; then
-  echo "zizmor=${ZIZMOR_VERSION}" >> "$output_file"
-else
-  echo "::warning::Latest zizmor version $ZIZMOR_VERSION not found on GHCR as $ZIZMOR_IMAGE" >&2
-  # Try the previous release
-  ZIZMOR_VERSION=$(get_previous_release zizmorcore/zizmor)
-  ZIZMOR_IMAGE="ghcr.io/zizmorcore/zizmor:${ZIZMOR_VERSION}"
+  local version image
+  version=$(get_current_release "$repo")
+  image=$(printf "$image_template" "$version")
 
-  if check_docker_image "$ZIZMOR_IMAGE"; then
-    echo "::warning::Using previous zizmor version $ZIZMOR_VERSION" >&2
-    echo "zizmor=${ZIZMOR_VERSION}" >> "$output_file"
-  else
-    echo "::error::Neither latest nor previous zizmor version found on GHCR" >&2
-    exit 1
+  if check_docker_image "$image"; then
+    printf -v "$__out_var" "%s" "$version"
+    return 0
   fi
-fi
 
-JQ_VERSION=$(get_current_release stedolan/jq)
-JQ_IMAGE="ghcr.io/jqlang/jq:${JQ_VERSION}"
+  echo "::warning::Latest version $version for $repo not found as $image" >&2
 
-# Check if the latest jq version exists on GHCR
-if check_docker_image "$JQ_IMAGE"; then
-  echo "jq=${JQ_VERSION}" >> "$output_file"
-else
-  echo "::warning::Latest jq version $JQ_VERSION not found on GHCR as $JQ_IMAGE" >&2
-  # Try the previous release
-  JQ_VERSION=$(get_previous_release stedolan/jq)
-  JQ_IMAGE="ghcr.io/jqlang/jq:${JQ_VERSION}"
+  version=$(get_previous_release "$repo")
+  image=$(printf "$image_template" "$version")
 
-  if check_docker_image "$JQ_IMAGE"; then
-    echo "::warning::Using previous jq version $JQ_VERSION" >&2
-    echo "jq=${JQ_VERSION}" >> "$output_file"
-  else
-    echo "::error::Neither latest nor previous jq version found on GHCR" >&2
-    exit 1
+  if check_docker_image "$image"; then
+    echo "::warning::Using previous version $version for $repo" >&2
+    printf -v "$__out_var" "%s" "$version"
+    return 0
   fi
-fi
 
-SHFMT_VERSION=$(get_current_release mvdan/sh)
-SHFMT_IMAGE="mvdan/shfmt:v${SHFMT_VERSION}"
+  echo "::error::Neither latest nor previous version for $repo found as $image" >&2
+  return 1
+}
 
-# Check if the latest shfmt version exists on Docker Hub
-if check_docker_image "$SHFMT_IMAGE"; then
-  echo "shfmt=${SHFMT_VERSION}" >> "$output_file"
-else
-  echo "::warning::Latest shfmt version $SHFMT_VERSION not found on Docker Hub as $SHFMT_IMAGE" >&2
-  # Try the previous release
-  SHFMT_VERSION=$(get_previous_release mvdan/sh)
-  SHFMT_IMAGE="mvdan/shfmt:v${SHFMT_VERSION}"
+resolve_version_with_fallback zizmorcore/zizmor "ghcr.io/zizmorcore/zizmor:%s" ZIZMOR_VERSION
+echo "zizmor=${ZIZMOR_VERSION}" >> "$output_file"
 
-  if check_docker_image "$SHFMT_IMAGE"; then
-    echo "::warning::Using previous shfmt version $SHFMT_VERSION" >&2
-    echo "shfmt=${SHFMT_VERSION}" >> "$output_file"
-  else
-    echo "::error::Neither latest nor previous shfmt version found on Docker Hub" >&2
-    exit 1
-  fi
-fi
+resolve_version_with_fallback stedolan/jq "ghcr.io/jqlang/jq:%s" JQ_VERSION
+echo "jq=${JQ_VERSION}" >> "$output_file"
 
-YQ_VERSION=$(get_current_release mikefarah/yq)
-YQ_IMAGE="mikefarah/yq:${YQ_VERSION}"
+resolve_version_with_fallback mvdan/sh "mvdan/shfmt:v%s" SHFMT_VERSION
+echo "shfmt=${SHFMT_VERSION}" >> "$output_file"
 
-# Check if the latest yq version exists on Docker Hub
-if check_docker_image "$YQ_IMAGE"; then
-  echo "yq=${YQ_VERSION}" >> "$output_file"
-else
-  echo "::warning::Latest yq version $YQ_VERSION not found on Docker Hub as $YQ_IMAGE" >&2
-  # Try the previous release
-  YQ_VERSION=$(get_previous_release mikefarah/yq)
-  YQ_IMAGE="mikefarah/yq:${YQ_VERSION}"
-
-  if check_docker_image "$YQ_IMAGE"; then
-    echo "::warning::Using previous yq version $YQ_VERSION" >&2
-    echo "yq=${YQ_VERSION}" >> "$output_file"
-  else
-    echo "::error::Neither latest nor previous yq version found on Docker Hub" >&2
-    exit 1
-  fi
-fi
+resolve_version_with_fallback mikefarah/yq "mikefarah/yq:%s" YQ_VERSION
+echo "yq=${YQ_VERSION}" >> "$output_file"
 
 # Get the latest Gradle version and validate it exists on Docker Hub
-GRADLE_VERSION=$(get_current_release gradle/gradle)
-GRADLE_IMAGE="gradle:${GRADLE_VERSION}-jdk21-noble"
+resolve_version_with_fallback gradle/gradle "gradle:%s-jdk21-noble" GRADLE_VERSION
+echo "gradle=${GRADLE_VERSION}" >> "$output_file"
 
-# Check if the latest Gradle version exists on Docker Hub
-if check_docker_image "$GRADLE_IMAGE"; then
-  echo "gradle=${GRADLE_VERSION}" >> "$output_file"
-else
-  echo "::warning::Latest Gradle version $GRADLE_VERSION not found on Docker Hub as $GRADLE_IMAGE" >&2
-  # Try the previous release
-  GRADLE_VERSION=$(get_previous_release gradle/gradle)
-  GRADLE_IMAGE="gradle:${GRADLE_VERSION}-jdk21-noble"
+resolve_version_with_fallback rhysd/actionlint "rhysd/actionlint:%s" ACTIONLINT_VERSION
+echo "actionlint=${ACTIONLINT_VERSION}" >> "$output_file"
 
-  if check_docker_image "$GRADLE_IMAGE"; then
-    echo "::warning::Using previous Gradle version $GRADLE_VERSION" >&2
-    echo "gradle=${GRADLE_VERSION}" >> "$output_file"
-  else
-    echo "::error::Neither latest nor previous Gradle version found on Docker Hub" >&2
-    exit 1
-  fi
-fi
-
-ACTIONLINT_VERSION=$(get_current_release rhysd/actionlint)
-ACTIONLINT_IMAGE="rhysd/actionlint:${ACTIONLINT_VERSION}"
-
-# Check if the latest actionlint version exists on Docker Hub
-if check_docker_image "$ACTIONLINT_IMAGE"; then
-  echo "actionlint=${ACTIONLINT_VERSION}" >> "$output_file"
-else
-  echo "::warning::Latest actionlint version $ACTIONLINT_VERSION not found on Docker Hub as $ACTIONLINT_IMAGE" >&2
-  # Try the previous release
-  ACTIONLINT_VERSION=$(get_previous_release rhysd/actionlint)
-  ACTIONLINT_IMAGE="rhysd/actionlint:${ACTIONLINT_VERSION}"
-
-  if check_docker_image "$ACTIONLINT_IMAGE"; then
-    echo "::warning::Using previous actionlint version $ACTIONLINT_VERSION" >&2
-    echo "actionlint=${ACTIONLINT_VERSION}" >> "$output_file"
-  else
-    echo "::error::Neither latest nor previous actionlint version found on Docker Hub" >&2
-    exit 1
-  fi
-fi
-
-HADOLINT_VERSION=$(get_current_release hadolint/hadolint)
-HADOLINT_IMAGE="hadolint/hadolint:v${HADOLINT_VERSION}-debian"
-
-# Check if the latest hadolint version exists on Docker Hub
-if check_docker_image "$HADOLINT_IMAGE"; then
-  echo "hadolint=${HADOLINT_VERSION}" >> "$output_file"
-else
-  echo "::warning::Latest hadolint version $HADOLINT_VERSION not found on Docker Hub as $HADOLINT_IMAGE" >&2
-  # Try the previous release
-  HADOLINT_VERSION=$(get_previous_release hadolint/hadolint)
-  HADOLINT_IMAGE="hadolint/hadolint:v${HADOLINT_VERSION}-debian"
-
-  if check_docker_image "$HADOLINT_IMAGE"; then
-    echo "::warning::Using previous hadolint version $HADOLINT_VERSION" >&2
-    echo "hadolint=${HADOLINT_VERSION}" >> "$output_file"
-  else
-    echo "::error::Neither latest nor previous hadolint version found on Docker Hub" >&2
-    exit 1
-  fi
-fi
+resolve_version_with_fallback hadolint/hadolint "hadolint/hadolint:v%s-debian" HADOLINT_VERSION
+echo "hadolint=${HADOLINT_VERSION}" >> "$output_file"
 
 echo "::group::Latest Tool Versions"
 echo "zizmor version: ${ZIZMOR_VERSION}"
