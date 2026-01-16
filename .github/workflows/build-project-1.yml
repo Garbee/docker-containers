@@ -329,7 +329,7 @@ jobs:
           echo "$DOCKER_METADATA_OUTPUT_JSON"
           echo "::endgroup::"
           docker buildx imagetools create \
-            "$(jq -cr '.tags | map("-t " + .) | join(" ")' <<< "$DOCKER_METADATA_OUTPUT_JSON")" \
+            $(jq -r '.tags | map("-t " + .) | join(" ")' <<< "$DOCKER_METADATA_OUTPUT_JSON") \
             --annotation='index:org.opencontainers.image.description=Development container with Node.js, Java, Gradle, Python, and browser testing tools' \
             --annotation='index:org.opencontainers.image.created=${STEPS_TIMESTAMP_OUTPUTS_TIMESTAMP}' \
             --annotation='index:org.opencontainers.image.url=https://github.com/garbee/docker-containers' \
