@@ -29,9 +29,6 @@ jobs:
   versions:
     name: Get Latest Tool versions
     runs-on: ubuntu-slim
-    permissions:
-      packages: read
-      contents: read
     outputs:
       zizmor: ${{ steps.get-versions.outputs.zizmor }}
       shfmt: ${{ steps.get-versions.outputs.shfmt }}
@@ -101,7 +98,7 @@ jobs:
         run: |
           echo "PLATFORM_PAIR=${PLATFORM//\//-}" >> "$GITHUB_OUTPUT"
           LOWER_OWNER=$(echo "$OWNER" | tr '[:upper:]' '[:lower:]')
-          echo "GHCR_IMAGE=ghcr.io/$LOWER_OWNER/${{ env.IMAGE_NAME }}" >> "$GITHUB_OUTPUT"
+          echo "GHCR_IMAGE=ghcr.io/$LOWER_OWNER/${IMAGE_NAME}" >> "$GITHUB_OUTPUT"
           # Set node version suffix for artifact naming
           echo "NODE_SUFFIX=-node${NODE_VERSION}" >> "$GITHUB_OUTPUT"
       - name: Checkout
@@ -335,7 +332,7 @@ jobs:
             --annotation='index:org.opencontainers.image.url=https://github.com/garbee/docker-containers' \
             --annotation='index:org.opencontainers.image.source=https://github.com/garbee/docker-containers' \
             --annotation='index:org.opencontainers.image.licenses=CC-PDM-1.0' \
-            "$(for f in *; do printf '%s ' "${NEEDS_BUILD_OUTPUTS_GHCR_IMAGE}@sha256:${f}"; done)"
+            $(for f in *; do printf '%s ' "${NEEDS_BUILD_OUTPUTS_GHCR_IMAGE}@sha256:${f}"; done)
 
       - name: Inspect image
         # This step inspects the created manifest list to verify its contents.
