@@ -224,6 +224,7 @@ jobs:
           # Set node version suffix for artifact pattern and tags
           echo "NODE_SUFFIX=-node${NODE_VERSION}" >> "$GITHUB_OUTPUT"
           echo "NODE_TAG_SUFFIX=-node${NODE_VERSION}" >> "$GITHUB_OUTPUT"
+
       - name: Download digests
         uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
         with:
@@ -318,18 +319,21 @@ jobs:
         id: manifest-annotate
         continue-on-error: true
         env:
-          GITHUB_EVENT_REPOSITORY_DESCRIPTION: ${{ github.event.repository.description }}
+          EVENT_REPOSITORY_DESCRIPTION: ${{ github.event.repository.description }}
           STEPS_TIMESTAMP_OUTPUTS_TIMESTAMP: ${{ steps.timestamp.outputs.timestamp }}
-          GITHUB_EVENT_REPOSITORY_URL: ${{ github.event.repository.url }}
+          EVENT_REPOSITORY_URL: ${{ github.event.repository.url }}
           NEEDS_BUILD_OUTPUTS_GHCR_IMAGE: ${{ needs.build.outputs.GHCR_IMAGE }}
         working-directory: /tmp/digests
         run: |
+          echo "::group::Metadata Output"
+          echo "$DOCKER_METADATA_OUTPUT_JSON"
+          echo "::endgroup::"
           docker buildx imagetools create \
             "$(jq -cr '.tags | map("-t " + .) | join(" ")' <<< "$DOCKER_METADATA_OUTPUT_JSON")" \
-            --annotation='index:org.opencontainers.image.description=${GITHUB_EVENT_REPOSITORY_DESCRIPTION}' \
+            --annotation='index:org.opencontainers.image.description=${EVENT_REPOSITORY_DESCRIPTION}' \
             --annotation='index:org.opencontainers.image.created=${STEPS_TIMESTAMP_OUTPUTS_TIMESTAMP}' \
-            --annotation='index:org.opencontainers.image.url=${GITHUB_EVENT_REPOSITORY_URL}' \
-            --annotation='index:org.opencontainers.image.source=${GITHUB_EVENT_REPOSITORY_URL}' \
+            --annotation='index:org.opencontainers.image.url=${EVENT_REPOSITORY_URL}' \
+            --annotation='index:org.opencontainers.image.source=${EVENT_REPOSITORY_URL}' \
             "$(for f in *; do printf '%s ' "${NEEDS_BUILD_OUTPUTS_GHCR_IMAGE}@sha256:${f}"; done)"
 
       - name: Create manifest list and push without annotations
