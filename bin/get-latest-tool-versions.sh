@@ -11,11 +11,10 @@ else
   output_file="$(mktemp)"
 fi
 
-# Check if a Docker image exists
+# Check if a container image exists using skopeo (no Docker daemon required)
 check_docker_image() {
   local image=$1
-  # Check if the image exists on Docker Hub by attempting to fetch its manifest
-  if docker manifest inspect "$image" > /dev/null 2>&1; then
+  if skopeo inspect "docker://${image}" > /dev/null 2>&1; then
     return 0
   else
     return 1
