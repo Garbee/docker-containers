@@ -276,7 +276,9 @@ jobs:
         with:
           images: ${{ needs.build.outputs.GHCR_IMAGE }}
           annotations: |
-            type=org.opencontainers.image.description,value=${{ github.event.repository.description || 'No description provided' }}
+            type=org.opencontainers.image.description,value=Development container with Node.js, Java, Gradle, Python, and browser testing tools
+            type=org.opencontainers.licenses,value=CC-PDM-1.0
+            type=org.opencontainers.image.url,value=https://github.com/garbee/docker-containers
           tags: |
             type=raw,value=main${{ steps.node-prepare.outputs.NODE_TAG_SUFFIX }},enable=${{ github.ref_name == 'main' }}
             type=raw,value=latest,enable=${{ github.ref_name == 'main' && matrix.node-version == '22' }}
@@ -317,11 +319,9 @@ jobs:
         # The annotations are obtained from the metadata generated in the previous steps.
         # The manifest list is pushed to the GitHub Container Registry (GHCR) with the specified tags.
         id: manifest-annotate
-        continue-on-error: true
+        continue-on-error: false
         env:
-          EVENT_REPOSITORY_DESCRIPTION: ${{ github.event.repository.description }}
           STEPS_TIMESTAMP_OUTPUTS_TIMESTAMP: ${{ steps.timestamp.outputs.timestamp }}
-          EVENT_REPOSITORY_URL: ${{ github.event.repository.url }}
           NEEDS_BUILD_OUTPUTS_GHCR_IMAGE: ${{ needs.build.outputs.GHCR_IMAGE }}
         working-directory: /tmp/digests
         run: |
@@ -330,23 +330,11 @@ jobs:
           echo "::endgroup::"
           docker buildx imagetools create \
             "$(jq -cr '.tags | map("-t " + .) | join(" ")' <<< "$DOCKER_METADATA_OUTPUT_JSON")" \
-            --annotation='index:org.opencontainers.image.description=${EVENT_REPOSITORY_DESCRIPTION}' \
+            --annotation='index:org.opencontainers.image.description=Development container with Node.js, Java, Gradle, Python, and browser testing tools' \
             --annotation='index:org.opencontainers.image.created=${STEPS_TIMESTAMP_OUTPUTS_TIMESTAMP}' \
-            --annotation='index:org.opencontainers.image.url=${EVENT_REPOSITORY_URL}' \
-            --annotation='index:org.opencontainers.image.source=${EVENT_REPOSITORY_URL}' \
-            "$(for f in *; do printf '%s ' "${NEEDS_BUILD_OUTPUTS_GHCR_IMAGE}@sha256:${f}"; done)"
-
-      - name: Create manifest list and push without annotations
-        # This step creates a manifest list for the Docker images built for different platforms.
-        # It uses the docker buildx imagetools create command to create the manifest list.
-        # The manifest list is created without annotations if the previous step fails.
-        # The manifest list is pushed to the GitHub Container Registry (GHCR) with the specified tags.
-        if: steps.manifest-annotate.outcome == 'failure'
-        env:
-          NEEDS_BUILD_OUTPUTS_GHCR_IMAGE: ${{ needs.build.outputs.GHCR_IMAGE }}
-        working-directory: /tmp/digests
-        run: |
-          docker buildx imagetools create  "$(jq -cr '.tags | map("-t " + .) | join(" ")' <<< "$DOCKER_METADATA_OUTPUT_JSON")" \
+            --annotation='index:org.opencontainers.image.url=https://github.com/garbee/docker-containers' \
+            --annotation='index:org.opencontainers.image.source=https://github.com/garbee/docker-containers' \
+            --annotation='index:org.opencontainers.image.licenses=CC-PDM-1.0' \
             "$(for f in *; do printf '%s ' "${NEEDS_BUILD_OUTPUTS_GHCR_IMAGE}@sha256:${f}"; done)"
 
       - name: Inspect image
