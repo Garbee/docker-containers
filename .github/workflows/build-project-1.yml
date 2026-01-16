@@ -4,13 +4,13 @@ on:
   workflow_dispatch:
   schedule:
     # Run at 3:17 AM UTC every Sunday
-    - cron: '17 3 * * 0'
+    - cron: "17 3 * * 0"
   push:
     branches:
       - main
     paths:
-      - 'project-1/Dockerfile'
-      - '.github/workflows/build-project-1.yml'
+      - "project-1/Dockerfile"
+      - ".github/workflows/build-project-1.yml"
 
 permissions:
   # Global permissions for the workflow, which can be overridden at the job level
@@ -29,6 +29,9 @@ jobs:
   versions:
     name: Get Latest Tool versions
     runs-on: ubuntu-slim
+    permissions:
+      packages: read
+      contents: read
     outputs:
       zizmor: ${{ steps.get-versions.outputs.zizmor }}
       shfmt: ${{ steps.get-versions.outputs.shfmt }}
@@ -51,13 +54,13 @@ jobs:
   build:
     needs:
       - versions
-    
+
     permissions:
       attestations: write # Required to provide attestations for the built images.
       contents: read # Ability to clone the repository.
       id-token: write # Required to publish to GHCR.
       packages: write # Ability to publish packages to GHCR.
-    
+
     strategy:
       fail-fast: false
       matrix:
@@ -138,7 +141,6 @@ jobs:
           username: ${{ github.repository_owner }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-
       - name: Build and push by digest
         # This step builds and pushes the Docker image using Buildx.
         # It uses the docker/build-push-action to build the image with the specified context and platforms.
@@ -164,7 +166,6 @@ jobs:
             HADOLINT_VERSION=${{ needs.versions.outputs.hadolint }}
           outputs: type=image,name=${{ steps.prepare.outputs.GHCR_IMAGE }},push-by-digest=true,name-canonical=true,push=true,oci-mediatypes=true
 
-
       - name: Export digest
         env:
           DIGEST: ${{ steps.build.outputs.digest }}
@@ -186,7 +187,6 @@ jobs:
           path: /tmp/digests/*
           if-no-files-found: error
           retention-days: 1
-
 
   merge:
     # This job merges the Docker manifests for the different platforms built in the previous job.
@@ -320,13 +320,13 @@ jobs:
           NEEDS_BUILD_OUTPUTS_GHCR_IMAGE: ${{ needs.build.outputs.GHCR_IMAGE }}
         working-directory: /tmp/digests
         run: |
-              docker buildx imagetools create \
-                "$(jq -cr '.tags | map("-t " + .) | join(" ")' <<< "$DOCKER_METADATA_OUTPUT_JSON")" \
-                --annotation='index:org.opencontainers.image.description=${GITHUB_EVENT_REPOSITORY_DESCRIPTION}' \
-                --annotation='index:org.opencontainers.image.created=${STEPS_TIMESTAMP_OUTPUTS_TIMESTAMP}' \
-                --annotation='index:org.opencontainers.image.url=${GITHUB_EVENT_REPOSITORY_URL}' \
-                --annotation='index:org.opencontainers.image.source=${GITHUB_EVENT_REPOSITORY_URL}' \
-                "$(for f in *; do printf '%s ' "${NEEDS_BUILD_OUTPUTS_GHCR_IMAGE}@sha256:${f}"; done)"
+          docker buildx imagetools create \
+            "$(jq -cr '.tags | map("-t " + .) | join(" ")' <<< "$DOCKER_METADATA_OUTPUT_JSON")" \
+            --annotation='index:org.opencontainers.image.description=${GITHUB_EVENT_REPOSITORY_DESCRIPTION}' \
+            --annotation='index:org.opencontainers.image.created=${STEPS_TIMESTAMP_OUTPUTS_TIMESTAMP}' \
+            --annotation='index:org.opencontainers.image.url=${GITHUB_EVENT_REPOSITORY_URL}' \
+            --annotation='index:org.opencontainers.image.source=${GITHUB_EVENT_REPOSITORY_URL}' \
+            "$(for f in *; do printf '%s ' "${NEEDS_BUILD_OUTPUTS_GHCR_IMAGE}@sha256:${f}"; done)"
 
       - name: Create manifest list and push without annotations
         # This step creates a manifest list for the Docker images built for different platforms.
@@ -338,8 +338,8 @@ jobs:
           NEEDS_BUILD_OUTPUTS_GHCR_IMAGE: ${{ needs.build.outputs.GHCR_IMAGE }}
         working-directory: /tmp/digests
         run: |
-              docker buildx imagetools create  "$(jq -cr '.tags | map("-t " + .) | join(" ")' <<< "$DOCKER_METADATA_OUTPUT_JSON")" \
-                "$(for f in *; do printf '%s ' "${NEEDS_BUILD_OUTPUTS_GHCR_IMAGE}@sha256:${f}"; done)"
+          docker buildx imagetools create  "$(jq -cr '.tags | map("-t " + .) | join(" ")' <<< "$DOCKER_METADATA_OUTPUT_JSON")" \
+            "$(for f in *; do printf '%s ' "${NEEDS_BUILD_OUTPUTS_GHCR_IMAGE}@sha256:${f}"; done)"
 
       - name: Inspect image
         # This step inspects the created manifest list to verify its contents.
