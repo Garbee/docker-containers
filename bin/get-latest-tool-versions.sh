@@ -83,6 +83,11 @@ resolve_version_with_fallback() {
 resolve_version_with_fallback gradle/gradle "gradle:%s-jdk21-noble" GRADLE_VERSION
 echo "gradle=${GRADLE_VERSION}" >> "$output_file"
 
+# Define supported Node versions as a JSON array
+NODE_VERSIONS='[20, 22, 24]'
+echo "node=${NODE_VERSIONS}" >> "$output_file"
+
 echo "::group::Latest Platform Versions"
 echo "gradle version: ${GRADLE_VERSION}"
+echo "node versions: ${NODE_VERSIONS}"
 echo "::endgroup::"
