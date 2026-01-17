@@ -165,7 +165,7 @@ jobs:
             GRADLE_VERSION=${{ needs.versions.outputs.gradle }}
             ACTIONLINT_VERSION=${{ needs.versions.outputs.actionlint }}
             HADOLINT_VERSION=${{ needs.versions.outputs.hadolint }}
-          outputs: type=oci,dest=/tmp/image
+          outputs: type=oci,dest=${{ runner.temp }}/image
 
       - name: Upload artifact
         # This step uploads the OCI image artifact to GitHub Actions artifact storage.
@@ -173,7 +173,7 @@ jobs:
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: oci-${{ steps.prepare.outputs.PLATFORM_PAIR }}${{ steps.prepare.outputs.NODE_SUFFIX }}
-          path: /tmp/image
+          path: ${{ runner.temp }}/image
           if-no-files-found: error
           retention-days: 1
 
@@ -217,7 +217,7 @@ jobs:
       - name: Download OCI images
         uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
         with:
-          path: /tmp/oci-images
+          path: ${{ runner.temp }}/oci-images
           pattern: oci-*${{ steps.node-prepare.outputs.NODE_SUFFIX }}
           merge-multiple: true
 
@@ -292,6 +292,11 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Debug info
+        env:
+          OCI_IMAGES_PATH: ${{ runner.temp }}/oci-images
+        run: ls -lah "$OCI_IMAGES_PATH"
+
       - name: Create manifest list and pushes
         # This step creates a manifest list for the Docker images built for different platforms.
         # It uses the docker buildx imagetools create command to create the manifest list.
@@ -303,7 +308,7 @@ jobs:
         env:
           NEEDS_BUILD_OUTPUTS_GHCR_IMAGE: ${{ needs.build.outputs.GHCR_IMAGE }}
           NODE_VERSION: ${{ matrix.node-version }}
-          OCI_IMAGES_PATH: /tmp/oci-images
+          OCI_IMAGES_PATH: ${{ runner.temp }}/oci-images
         run: ./bin/create-manifests-and-push.sh
 
       # This step inspects the created manifest list to verify its contents.
