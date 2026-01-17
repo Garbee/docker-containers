@@ -79,34 +79,10 @@ resolve_version_with_fallback() {
   return 1
 }
 
-resolve_version_with_fallback zizmorcore/zizmor "ghcr.io/zizmorcore/zizmor:%s" ZIZMOR_VERSION
-echo "zizmor=${ZIZMOR_VERSION}" >> "$output_file"
-
-resolve_version_with_fallback stedolan/jq "ghcr.io/jqlang/jq:%s" JQ_VERSION
-echo "jq=${JQ_VERSION}" >> "$output_file"
-
-resolve_version_with_fallback mvdan/sh "mvdan/shfmt:v%s" SHFMT_VERSION
-echo "shfmt=${SHFMT_VERSION}" >> "$output_file"
-
-resolve_version_with_fallback mikefarah/yq "mikefarah/yq:%s" YQ_VERSION
-echo "yq=${YQ_VERSION}" >> "$output_file"
-
 # Get the latest Gradle version and validate it exists on Docker Hub
 resolve_version_with_fallback gradle/gradle "gradle:%s-jdk21-noble" GRADLE_VERSION
 echo "gradle=${GRADLE_VERSION}" >> "$output_file"
 
-resolve_version_with_fallback rhysd/actionlint "rhysd/actionlint:%s" ACTIONLINT_VERSION
-echo "actionlint=${ACTIONLINT_VERSION}" >> "$output_file"
-
-resolve_version_with_fallback hadolint/hadolint "hadolint/hadolint:v%s-debian" HADOLINT_VERSION
-echo "hadolint=${HADOLINT_VERSION}" >> "$output_file"
-
-echo "::group::Latest Tool Versions"
-echo "zizmor version: ${ZIZMOR_VERSION}"
-echo "jq version: ${JQ_VERSION}"
-echo "shfmt version: ${SHFMT_VERSION}"
-echo "yq version: ${YQ_VERSION}"
+echo "::group::Latest Platform Versions"
 echo "gradle version: ${GRADLE_VERSION}"
-echo "actionlint version: ${ACTIONLINT_VERSION}"
-echo "hadolint version: ${HADOLINT_VERSION}"
 echo "::endgroup::"

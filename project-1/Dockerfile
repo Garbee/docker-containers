@@ -3,25 +3,20 @@
 
 ARG IMAGE_VERSION=0
 ARG TARGETARCH
-ARG NODE_VERSION=22.21.1
+
+ARG NODE_VERSION=22.22.0
 ARG GRADLE_VERSION=8.14.3
 ARG JAVA_VERSION=21.0.9_10
-ARG HADOLINT_VERSION=2.14.0
-ARG ACTIONLINT_VERSION=1.7.8
-ARG SHFMT_VERSION=3.12.0
-ARG YQ_VERSION=4.48.1
-ARG ZIZMOR_VERSION=1.16.3
-ARG JQ_VERSION=1.8.1
 
 FROM node:${NODE_VERSION}-bookworm-slim AS node-src
 FROM gradle:${GRADLE_VERSION}-jdk21-noble AS gradle-src
 FROM eclipse-temurin:${JAVA_VERSION}-jdk-noble AS jdk-src
-FROM hadolint/hadolint:v${HADOLINT_VERSION}-debian AS hadolint-src
-FROM rhysd/actionlint:${ACTIONLINT_VERSION} AS actionlint-src
-FROM mvdan/shfmt:v${SHFMT_VERSION} AS shfmt-src
-FROM mikefarah/yq:${YQ_VERSION} AS yq-src
-FROM ghcr.io/zizmorcore/zizmor:${ZIZMOR_VERSION} AS zizmor-src
-FROM ghcr.io/jqlang/jq:${JQ_VERSION} AS jq-src
+FROM hadolint/hadolint:v2.14.0-debian AS hadolint-src
+FROM rhysd/actionlint:1.7.8 AS actionlint-src
+FROM mvdan/shfmt:v3.12.0 AS shfmt-src
+FROM mikefarah/yq:4.50.1 AS yq-src
+FROM ghcr.io/zizmorcore/zizmor:1.21.0 AS zizmor-src
+FROM ghcr.io/jqlang/jq:1.8.1 AS jq-src
 # Just setting this one up for re-use so it only needs to be updated in one place.
 FROM ubuntu:noble-20251013 AS base-runtime
 
@@ -55,8 +50,7 @@ ARG DEBIAN_FRONTEND=noninteractive
 ARG APT_LISTCHANGES_FRONTEND=none
 ARG UCF_FORCE_CONFFNEW=1
 
-LABEL org.opencontainers.image.description="Development container with Node.js, Java, Gradle, Python, and browser testing tools" \
-      org.opencontainers.image.licenses="CC-PDM-1.0"
+LABEL org.opencontainers.image.licenses="CC-PDM-1.0"
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
@@ -183,8 +177,19 @@ RUN --mount=type=cache,target=/root/.npm,id=npm-cache-${TARGETARCH},sharing=shar
   <<EOF
 set -eux
 npm install -g npm@latest
-npm config set '@deque:registry=https://agora.dequecloud.com/artifactory/api/npm/dequelabs/'
 gosu ubuntu npm config set '@deque:registry=https://agora.dequecloud.com/artifactory/api/npm/dequelabs/'
+npm config set '@deque:registry=https://agora.dequecloud.com/artifactory/api/npm/dequelabs/'
+npm config set fund false
+npm config set audit false
+npm config set progress false
+npm config set prefer-offline true
+npm config set fetch-retries 6
+npm config set fetch-retry-mintimeout 20000
+npm config set fetch-retry-maxtimeout 120000
+
+yarn config set prefer-offline true
+yarn config set network-timeout 300000
+yarn config set network-concurrency 8
 EOF
 
 # Setup Python virtual environment (cached separately)

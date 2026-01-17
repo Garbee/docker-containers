@@ -13,36 +13,6 @@ echo "::group::Metadata Output"
 echo "$DOCKER_METADATA_OUTPUT_JSON"
 echo "::endgroup::"
 
-current_dir=$(dirname "$0")
-repository_root=$(realpath "$current_dir/..")
-
-readme_contents=$(<"$repository_root/readme.md")
-
-platform_versions_table="| Platform | Version |\n|----------|---------|\n"
-platform_versions_table+="| Node.js | $NODE_VERSION |\n"
-
-# Converting the installed tools versions JSON into a markdown table
-versions_table="| Tool | Version |\n|------|---------|\n"
-while IFS="|" read -r tool version; do
-  versions_table+="| $tool | $version |\n"
-done < <(jq -r 'to_entries[] | "\(.key)|\(.value)"' <<< "$INSTALLED_VERSIONS")
-
-readme_contents+="
-
-## Platform Versions
-
-$platform_versions_table
-
-## Installed Tool Versions
-
-$versions_table
-
-"
-
-echo "::group::Generated README Contents"
-echo -e "$readme_contents"
-echo "::endgroup::"
-
 # Get the current execution timestamp in RFC3339 format.
 timestamp=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
@@ -71,9 +41,6 @@ echo "::group::Digest references to be included"
 printf '%s\n' "${digests[@]}"
 echo "::endgroup::"
 
-# Escape newlines so it doesn't break the annotation itself.
-readme_annotation=${readme_contents//$'\n'/\\n}
-
 tag_args=()
 for tag in "${tags[@]}"; do
   tag_args+=(-t "$tag")
@@ -83,9 +50,18 @@ echo "::group::Tag arguments to be applied"
 printf '%s\n' "${tag_args[@]}"
 echo "::endgroup::"
 
+# The description is plain text. No markdown is parsed.
+description="Development container with Node.js ${NODE_VERSION}, Java, Gradle, Python, and browser testing tools"
+
+# Check if the description is over 512 characters
+if [ ${#description} -gt 512 ]; then
+  echo "::error::Description is too long (${#description} characters). Maximum allowed is 512 characters." >&2
+  exit 1
+fi
+
 docker buildx imagetools create \
   "${tag_args[@]}" \
-  --annotation="index:org.opencontainers.image.description=${readme_annotation}" \
+  --annotation="index:org.opencontainers.image.description=${description}" \
   --annotation="index:org.opencontainers.image.created=${timestamp}" \
   --annotation='index:org.opencontainers.image.url=https://github.com/garbee/docker-containers' \
   --annotation='index:org.opencontainers.image.source=https://github.com/garbee/docker-containers' \

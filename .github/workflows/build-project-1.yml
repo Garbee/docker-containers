@@ -210,7 +210,6 @@ jobs:
 
     needs:
       - build
-      - versions
 
     steps:
       - name: Checkout
@@ -316,7 +315,6 @@ jobs:
         continue-on-error: false
         env:
           NEEDS_BUILD_OUTPUTS_GHCR_IMAGE: ${{ needs.build.outputs.GHCR_IMAGE }}
-          INSTALLED_VERSIONS: ${{ toJson(needs.versions.outputs) }}
           NODE_VERSION: ${{ matrix.node-version }}
           DIGEST_PATH: /tmp/digests
         run: ./bin/create-manifests-and-push.sh
@@ -327,7 +325,7 @@ jobs:
       - name: Inspect image
         id: inspect
         env:
-          IMAGE: ${{ needs.build.outputs.GHCR_IMAGE }}\:${{ steps.meta.outputs.version }}
+          IMAGE: "${{ needs.build.outputs.GHCR_IMAGE }}:${{ steps.meta.outputs.version }}"
         run: docker buildx imagetools inspect "$IMAGE"
 
       - name: Delete Artifacts
