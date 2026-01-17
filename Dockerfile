@@ -117,13 +117,6 @@ mkdir -p /etc/apt/sources.list.d
 chmod 755 /etc/apt/sources.list.d
 EOF
 
-# Setup sudo access
-RUN <<EOF
-set -eux
-echo "ubuntu ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers.d/ubuntu
-chmod 0440 /etc/sudoers.d/ubuntu
-EOF
-
 # Setup Puppeteer browser environment variables
 RUN <<EOF
 set -eux
@@ -210,6 +203,13 @@ apt-get install -y --no-install-recommends \
   sudo gosu \
   xvfb
 rm -rf /var/lib/apt/lists/*
+EOF
+
+# Setup sudo access
+RUN <<EOF
+set -eux
+echo "ubuntu ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers.d/ubuntu
+chmod 0440 /etc/sudoers.d/ubuntu
 EOF
 
 # Install and configure npm (cached separately)
