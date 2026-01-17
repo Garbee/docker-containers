@@ -16,6 +16,7 @@ jobs:
     name: Remove Images
     runs-on: ubuntu-slim
     strategy:
+      fail-fast: false
       matrix:
         node-version:
           - 20
