@@ -203,7 +203,7 @@ jobs:
           images: ${{ env.GHCR_IMAGE }}
           tags: |
             type=raw,value=branch.${{ steps.normalize_branch.outputs.name }}
-            type=raw,value=latest,enable=${{ github.ref_name == 'main' || inputs.force_latest }}
+            type=raw,value=latest,enable=${{ github.ref_name == 'main' || inputs.force_latest == true || 'false' }}
             type=raw,value=${{ steps.tag_info.outputs.TAG }}
             type=raw,value=on.manual,enable=${{ github.event_name == 'workflow_dispatch' }}
             type=raw,value=on.scheduled,enable=${{ github.event_name == 'schedule' }}

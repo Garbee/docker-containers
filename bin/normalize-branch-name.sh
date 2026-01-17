@@ -9,8 +9,8 @@ set -euoC pipefail
 
 : "${GITHUB_OUTPUT:?GITHUB_OUTPUT must be set}"
 
-if [ -z "${GITHUB_REF:-}" ] && [ -z "${GITHUB_HEAD_REF:-}" ]; then
-    echo "Error: Both GITHUB_REF and GITHUB_HEAD_REF are not set." >&2
+if [ -z "${GITHUB_REF_NAME:-}" ] && [ -z "${GITHUB_HEAD_REF:-}" ]; then
+    echo "Error: Both GITHUB_REF_NAME and GITHUB_HEAD_REF are not set." >&2
     echo "One of these must be set to determine the branch name." >&2
     exit 1
 fi
@@ -19,7 +19,7 @@ fi
 if [ -n "$GITHUB_HEAD_REF" ]; then
     BRANCH=$GITHUB_HEAD_REF
 else
-    BRANCH=$GITHUB_REF
+    BRANCH=$GITHUB_REF_NAME
 fi
 
 # Operate on a brach name and reduce the characters to a safe subset
