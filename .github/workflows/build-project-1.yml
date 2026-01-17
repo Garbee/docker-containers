@@ -52,9 +52,7 @@ jobs:
       - versions
 
     permissions:
-      attestations: write # Required to provide attestations for the built images.
       contents: read # Ability to clone the repository.
-      id-token: write # Required to publish to GHCR.
       packages: write # Ability to publish packages to GHCR.
 
     strategy:
@@ -91,34 +89,18 @@ jobs:
         uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
         with:
           persist-credentials: false
-        # This step checks out the code from the repository.
-        # It uses the actions/checkout action to clone the repository into the runner's workspace.
 
-      - name: Docker meta default
-        # This step generates metadata for the Docker image.
-        # It uses the docker/metadata-action to create metadata based on the repository information.
-        # The metadata includes information such as the image name, tags, and labels.
-        # The metadata will be used later in the workflow to build and push the Docker image.
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
+        with:
+          cache-binary: false
+          platforms: ${{ matrix.platform }}
+
+      - name: Extract Docker Metadata
         id: meta
         uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051 # v5.10.0
         with:
           images: ${{ env.GHCR_IMAGE }}
-
-      - name: Set up Docker Context for Buildx
-        # This step sets up a Docker context for Buildx.
-        # It creates a new context named "builders" that will be used for building the Docker image.
-        # The context allows Buildx to use the Docker daemon for building images.
-        id: buildx-context
-        run: docker context create builders
-
-      - name: Set up Docker Buildx
-        # This step sets up Docker Buildx, which is a Docker CLI plugin for extended build capabilities with BuildKit.
-        # It uses the docker/setup-buildx-action to configure Buildx with the specified context and platforms.
-        # The platforms are specified in the matrix and will be used for building the Docker image.
-        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
-        with:
-          endpoint: builders
-          platforms: ${{ matrix.platform }}
 
       - name: Login to GitHub Container Registry
         uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # v3.6.0
@@ -128,36 +110,30 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build and push by digest
-        # This step builds and pushes the Docker image using Buildx.
-        # It uses the docker/build-push-action to build the image with the specified context and platforms.
-        # The image is built with the labels and annotations generated in the previous steps.
-        # The outputs are configured to push the image by digest, which allows for better caching and versioning.
         id: build
         uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
-        env:
-          DOCKER_BUILDKIT: 1
         with:
-          context: ./
           platforms: ${{ matrix.platform }}
           labels: ${{ steps.meta.outputs.labels }}
           annotations: ${{ steps.meta.outputs.annotations }}
+          outputs: type=image,name=${{ env.GHCR_IMAGE }},push-by-digest=true,name-canonical=true,push=true
           build-args: |
             NODE_VERSION=${{ matrix.node-version }}
             GRADLE_VERSION=${{ needs.versions.outputs.gradle }}
-          outputs: type=image,name=${{ env.GHCR_IMAGE }},push-by-digest=true,name-canonical=true,push=true
 
       - name: Export digest
         env:
           DIGEST: ${{ steps.build.outputs.digest }}
         run: |
-          mkdir -p /tmp/digests
-          touch "/tmp/digests/${DIGEST#sha256:}"
+          mkdir -p "/${RUNNER_TEMP}/digests"
+          digest="${DIGEST}"
+          touch "/${RUNNER_TEMP}/digests/${digest#sha256:}"
 
       - name: Upload digest
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: digests-${{ matrix.platform_pair }}${{ env.NODE_SUFFIX }}
-          path: /tmp/digests/*
+          path: ${{ runner.temp }}/digests/*
           if-no-files-found: error
           retention-days: 1
 
@@ -167,9 +143,7 @@ jobs:
     runs-on: ubuntu-latest
 
     permissions:
-      attestations: write # Required to provide attestations for the built images.
       contents: read # Ability to clone the repository.
-      id-token: write # Required to publish to GHCR.
       packages: write # Ability to publish packages to GHCR.
 
     strategy:
@@ -195,7 +169,7 @@ jobs:
       - name: Download digests
         uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
         with:
-          path: /tmp/digests
+          path: ${{ runner.temp }}/digests
           pattern: digests-*${{ env.NODE_SUFFIX }}
           merge-multiple: true
 
@@ -235,9 +209,6 @@ jobs:
           echo "TAG=$TAG" >> "$GITHUB_OUTPUT"
 
       - name: Docker meta
-        # This step generates metadata for the Docker image.
-        # It uses the docker/metadata-action to create metadata based on the repository information.
-        # The metadata includes information such as the image name, tags, and labels.
         id: meta
         uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051 # v5.10.0
         with:
@@ -257,8 +228,7 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
         with:
-          driver-opts: |
-            network=host
+          cache-binary: false
 
       - name: Login to GitHub Container Registry
         uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # v3.6.0
@@ -270,22 +240,17 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Debug
+        run: ls -lRha "${{ runner.temp }}/digests"
+
       - name: Create manifest list and pushes
-        # This step creates a manifest list for the Docker images built for different platforms.
-        # It uses the docker buildx imagetools create command to create the manifest list.
-        # The manifest list is annotated with metadata such as description, creation timestamp, and source URL.
-        # The annotations are obtained from the metadata generated in the previous steps.
-        # The manifest list is pushed to the GitHub Container Registry (GHCR) with the specified tags.
         id: manifest-annotate
         continue-on-error: false
         env:
           NODE_VERSION: ${{ matrix.node-version }}
-          DIGEST_PATH: /tmp/digests
+          DIGEST_PATH: ${{ runner.temp }}/digests
         run: ./bin/create-manifests-and-push.sh
 
-      # This step inspects the created manifest list to verify its contents.
-      # It uses the docker buildx imagetools inspect command to display information about the manifest list.
-      # The inspection output will show the platforms and tags associated with the manifest list.
       - name: Inspect image
         id: inspect
         env:
