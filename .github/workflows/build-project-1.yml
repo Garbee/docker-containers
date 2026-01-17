@@ -165,27 +165,15 @@ jobs:
             GRADLE_VERSION=${{ needs.versions.outputs.gradle }}
             ACTIONLINT_VERSION=${{ needs.versions.outputs.actionlint }}
             HADOLINT_VERSION=${{ needs.versions.outputs.hadolint }}
-          outputs: type=image,name=${{ steps.prepare.outputs.GHCR_IMAGE }},push-by-digest=true,name-canonical=true,push=true
+          outputs: type=oci,dest=/tmp/image
 
-      - name: Export digest
-        env:
-          DIGEST: ${{ steps.build.outputs.digest }}
-        # This step exports the digest of the built image to a file.
-        # It creates a directory in /tmp/digests and saves the digest of the image to a file.
-        # The digest is obtained from the output of the build step.
-        # The digest is used to uniquely identify the built image and can be used for further processing or verification.
-        run: |
-          mkdir -p /tmp/digests
-          touch "/tmp/digests/${DIGEST#sha256:}"
-
-      - name: Upload digest
-        # This step uploads the digest file to the GitHub Actions artifact storage.
-        # It uses the actions/upload-artifact action to upload the file created in the previous step.
-        # The artifact is retained for 1 day, and if no files are found, it will throw an error.
+      - name: Upload artifact
+        # This step uploads the OCI image artifact to GitHub Actions artifact storage.
+        # The artifact is retained for 1 day to be used by the merge job.
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
-          name: digests-${{ steps.prepare.outputs.PLATFORM_PAIR }}${{ steps.prepare.outputs.NODE_SUFFIX }}
-          path: /tmp/digests/*
+          name: oci-${{ steps.prepare.outputs.PLATFORM_PAIR }}${{ steps.prepare.outputs.NODE_SUFFIX }}
+          path: /tmp/image
           if-no-files-found: error
           retention-days: 1
 
@@ -226,11 +214,11 @@ jobs:
           echo "NODE_SUFFIX=-node${NODE_VERSION}" >> "$GITHUB_OUTPUT"
           echo "NODE_TAG_SUFFIX=-node${NODE_VERSION}" >> "$GITHUB_OUTPUT"
 
-      - name: Download digests
+      - name: Download OCI images
         uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
         with:
-          path: /tmp/digests
-          pattern: digests-*${{ steps.node-prepare.outputs.NODE_SUFFIX }}
+          path: /tmp/oci-images
+          pattern: oci-*${{ steps.node-prepare.outputs.NODE_SUFFIX }}
           merge-multiple: true
 
       - name: Generate Docker tag
@@ -315,7 +303,7 @@ jobs:
         env:
           NEEDS_BUILD_OUTPUTS_GHCR_IMAGE: ${{ needs.build.outputs.GHCR_IMAGE }}
           NODE_VERSION: ${{ matrix.node-version }}
-          DIGEST_PATH: /tmp/digests
+          OCI_IMAGES_PATH: /tmp/oci-images
         run: ./bin/create-manifests-and-push.sh
 
       # This step inspects the created manifest list to verify its contents.
@@ -329,6 +317,9 @@ jobs:
 
       - name: Delete Artifacts
         uses: geekyeggo/delete-artifact@f275313e70c08f6120db482d7a6b98377786765b # v5.1.0
+        # Ensure artifacts are deleted even if previous steps fail
+        # Whole images are stored, so they get huge.
+        if: always()
         with:
           name: |
-            digests-*${{ steps.node-prepare.outputs.NODE_SUFFIX }}
+            oci-*${{ steps.node-prepare.outputs.NODE_SUFFIX }}
