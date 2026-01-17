@@ -15,10 +15,7 @@ set -euoC pipefail
 : "${EVENT_NAME:?EVENT_NAME must be set}"
 : "${RUN_NUMBER:?RUN_NUMBER must be set}"
 : "${RUN_ATTEMPT:?RUN_ATTEMPT must be set}"
-: "${SHA:?SHA must be set}"
 : "${GITHUB_OUTPUT:?GITHUB_OUTPUT must be set}"
-: "${PR_NUMBER:-}"
-
 
 case "$EVENT_NAME" in
   schedule)
@@ -26,6 +23,7 @@ case "$EVENT_NAME" in
     TAG="on.scheduled-${YEAR_WEEK}"
     ;;
   push)
+    : "${SHA:?SHA must be set for push events}"
     TAG="on.push-${SHA:0:7}"
     ;;
   workflow_dispatch)
@@ -33,6 +31,7 @@ case "$EVENT_NAME" in
     TAG="on.manual-${UNIQUE}"
     ;;
   pull_request)
+    : "${PR_NUMBER:?PR_NUMBER must be set for pull_request events}"
     TAG="on.pr-${PR_NUMBER}"
     ;;
   *)
