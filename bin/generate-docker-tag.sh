@@ -1,7 +1,12 @@
 #!/usr/bin/env bash
 
-set -euo pipefail
-# Validate required environment variables
+# Generate a Docker tag based on the current date, event type, and unique identifiers.
+# This allows for easy identification of when and why a Docker image was built.
+
+set -euoC pipefail
+
+[[ "${DEBUG:-}" ]] && set -x
+
 : "${EVENT_NAME:?EVENT_NAME must be set}"
 : "${RUN_NUMBER:?RUN_NUMBER must be set}"
 : "${RUN_ATTEMPT:?RUN_ATTEMPT must be set}"

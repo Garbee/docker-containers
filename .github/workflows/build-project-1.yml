@@ -124,6 +124,7 @@ jobs:
         id: build
         uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
         with:
+          load: ${{ github.event_name == 'push' }}
           push: ${{ github.event_name != 'push' }}
           platforms: ${{ matrix.platform }}
           labels: ${{ steps.meta.outputs.labels }}
@@ -133,27 +134,17 @@ jobs:
             NODE_VERSION=${{ matrix.node-version }}
             GRADLE_VERSION=${{ needs.versions.outputs.gradle }}
 
-      - name: Inspect built image (push event only)
-        if: github.event_name == 'push'
-        run: |
-          echo "::group::Built Images"
-          docker images
-          echo "::endgroup::"
-          echo "::group::Image Metadata"
-          docker buildx imagetools inspect ${{ steps.build.outputs.imageid }}
-          echo "::endgroup::"
-          echo "::group::Build Info"
-          echo "Image ID: ${{ steps.build.outputs.imageid }}"
-          echo "Digest: ${{ steps.build.outputs.digest }}"
-          echo "Platform: ${{ matrix.platform }}"
-          echo "Node Version: ${{ matrix.node-version }}"
-          echo "Gradle Version: ${{ needs.versions.outputs.gradle }}"
-          echo "::endgroup::"
-          echo "::group::Image History & Layers"
-          docker history ${{ steps.build.outputs.imageid }} --no-trunc || echo "History not available for this image type"
-          echo "::endgroup::"
+      - name: Inspect built image
+        env:
+          IMAGE_ID: ${{ steps.build.outputs.imageid }}
+          DIGEST: ${{ steps.build.outputs.digest }}
+          PLATFORM: ${{ matrix.platform }}
+          NODE_VERSION: ${{ matrix.node-version }}
+          GRADLE_VERSION: ${{ needs.versions.outputs.gradle }}
+        run: ./bin/inspect-on-build.sh
 
       - name: Export digest
+        if: github.event_name != 'push'
         env:
           DIGEST: ${{ steps.build.outputs.digest }}
         run: |
@@ -162,6 +153,7 @@ jobs:
           touch "/${RUNNER_TEMP}/digests/${digest#sha256:}"
 
       - name: Upload digest
+        if: github.event_name != 'push'
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: digests-${{ matrix.platform_pair }}${{ env.NODE_SUFFIX }}

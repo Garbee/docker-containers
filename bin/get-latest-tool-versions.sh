@@ -2,7 +2,11 @@
 
 # Retrieve the latest versions of various tools. Export them
 # to GITHUB_OUTPUT for use in GitHub Actions workflows.
-set -euo pipefail
+
+
+set -euoC pipefail
+
+[[ "${DEBUG:-}" ]] && set -x
 
 # Use GITHUB_OUTPUT if defined, otherwise a temp file
 if [[ -n "${GITHUB_OUTPUT:-}" ]]; then

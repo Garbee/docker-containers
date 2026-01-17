@@ -1,8 +1,11 @@
 #!/usr/bin/env bash
 
-set -euo pipefail
+# Merge and push Docker manifests for multi-architecture images.
 
-# Validate required environment variables
+set -euoC pipefail
+
+[[ "${DEBUG:-}" ]] && set -x
+
 : "${DOCKER_METADATA_OUTPUT_JSON:?DOCKER_METADATA_OUTPUT_JSON must be set}"
 : "${GHCR_IMAGE:?GHCR_IMAGE must be set}"
 : "${NODE_VERSION:?NODE_VERSION must be set}"
