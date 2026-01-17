@@ -71,9 +71,12 @@ echo "::group::Digest references to be included"
 printf '%s\n' "${digests[@]}"
 echo "::endgroup::"
 
+# Escape newlines so it doesn't break the annotation itself.
+readme_annotation=${readme_contents//$'\n'/\\n}
+
 docker buildx imagetools create \
   "${tags[@]}" \
-  --annotation="index:org.opencontainers.image.description=${readme_contents}" \
+  --annotation="index:org.opencontainers.image.description=${readme_annotation}" \
   --annotation="index:org.opencontainers.image.created=${timestamp}" \
   --annotation='index:org.opencontainers.image.url=https://github.com/garbee/docker-containers' \
   --annotation='index:org.opencontainers.image.source=https://github.com/garbee/docker-containers' \
