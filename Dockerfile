@@ -104,7 +104,7 @@ ENV PATH="/usr/local/lib/node_modules/bin:\
 
 RUN <<EOF
 set -euxo pipefail
-:"${PUPPETEER_CACHE_DIR:?PUPPETEER_CACHE_DIR must be set}"
+: "${PUPPETEER_CACHE_DIR:?PUPPETEER_CACHE_DIR must be set}"
 
 groupadd -r node
 usermod -aG node ubuntu
