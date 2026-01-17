@@ -9,7 +9,7 @@ on:
     branches:
       - main
     paths:
-      - "project-1/Dockerfile"
+      - "Dockerfile"
       - ".github/workflows/build-project-1.yml"
 
 permissions:
@@ -31,13 +31,7 @@ jobs:
     name: Get Latest Tool versions
     runs-on: ubuntu-slim
     outputs:
-      zizmor: ${{ steps.get-versions.outputs.zizmor }}
-      shfmt: ${{ steps.get-versions.outputs.shfmt }}
-      yq: ${{ steps.get-versions.outputs.yq }}
-      jq: ${{ steps.get-versions.outputs.jq }}
       gradle: ${{ steps.get-versions.outputs.gradle }}
-      actionlint: ${{ steps.get-versions.outputs.actionlint }}
-      hadolint: ${{ steps.get-versions.outputs.hadolint }}
     steps:
       - name: Checkout
         uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
@@ -66,15 +60,22 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        platform:
-          - linux/amd64
-          - linux/arm64
         node-version:
           - 20
           - 22
           - 24
+        platform:
+          - linux/amd64
+          - linux/arm64
+        include:
+          - platform: linux/amd64
+            runner: ubuntu-24.04
+            platform_pair: linux-amd64
+          - platform: linux/arm64
+            runner: ubuntu-24.04-arm
+            platform_pair: linux-arm64
 
-    runs-on: ${{ matrix.platform == 'linux/amd64' && 'ubuntu-24.04' || matrix.platform == 'linux/arm64' && 'ubuntu-24.04-arm' }}
+    runs-on: ${{ matrix.runner }}
     # The job runs on different runners based on the platform.
     # For linux/amd64, it runs on the latest Ubuntu runner.
     # For linux/arm64, it runs on an Ubuntu 24.04 ARM runner.
@@ -86,16 +87,6 @@ jobs:
       NODE_SUFFIX: -node${{ matrix.node-version }}
 
     steps:
-      - name: Prepare environment for current platform
-        # This step sets up the environment for the current platform being built.
-        # It replaces the '/' character in the platform name with '-' and sets it as an environment variable.
-        # This is useful for naming artifacts and other resources that cannot contain '/'.
-        # The environment variable PLATFORMS_PAIR will be used later in the workflow.
-        id: prepare
-        env:
-          PLATFORM: ${{ matrix.platform }}
-        run: |
-          echo "PLATFORM_PAIR=${PLATFORM//\//-}" >> "$GITHUB_OUTPUT"
       - name: Checkout
         uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
         with:
@@ -118,8 +109,7 @@ jobs:
         # It creates a new context named "builders" that will be used for building the Docker image.
         # The context allows Buildx to use the Docker daemon for building images.
         id: buildx-context
-        run: |
-          docker context create builders
+        run: docker context create builders
 
       - name: Set up Docker Buildx
         # This step sets up Docker Buildx, which is a Docker CLI plugin for extended build capabilities with BuildKit.
@@ -147,19 +137,13 @@ jobs:
         env:
           DOCKER_BUILDKIT: 1
         with:
-          context: ./project-1
+          context: ./
           platforms: ${{ matrix.platform }}
           labels: ${{ steps.meta.outputs.labels }}
           annotations: ${{ steps.meta.outputs.annotations }}
           build-args: |
             NODE_VERSION=${{ matrix.node-version }}
-            SHFMT_VERSION=${{ needs.versions.outputs.shfmt }}
-            YQ_VERSION=${{ needs.versions.outputs.yq }}
-            ZIZMOR_VERSION=${{ needs.versions.outputs.zizmor }}
-            JQ_VERSION=${{ needs.versions.outputs.jq }}
             GRADLE_VERSION=${{ needs.versions.outputs.gradle }}
-            ACTIONLINT_VERSION=${{ needs.versions.outputs.actionlint }}
-            HADOLINT_VERSION=${{ needs.versions.outputs.hadolint }}
           outputs: type=image,name=${{ env.GHCR_IMAGE }},push-by-digest=true,name-canonical=true,push=true
 
       - name: Export digest
@@ -172,7 +156,7 @@ jobs:
       - name: Upload digest
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
-          name: digests-${{ steps.prepare.outputs.PLATFORM_PAIR }}${{ env.NODE_SUFFIX }}
+          name: digests-${{ matrix.platform_pair }}${{ env.NODE_SUFFIX }}
           path: /tmp/digests/*
           if-no-files-found: error
           retention-days: 1
