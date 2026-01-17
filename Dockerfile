@@ -68,6 +68,7 @@ EOF
 # ---------- Final dev runtime ----------
 FROM base-runtime AS dev-runtime
 ARG TARGETARCH
+ARG NODE_VERSION
 ARG DEBIAN_FRONTEND=noninteractive
 ARG APT_LISTCHANGES_FRONTEND=none
 ARG UCF_FORCE_CONFFNEW=1
@@ -117,16 +118,6 @@ mkdir -p /etc/apt/sources.list.d
 chmod 755 /etc/apt/sources.list.d
 EOF
 
-# Setup Puppeteer browser environment variables
-RUN <<EOF
-set -eux
-CHROME_PATH=$(cat /chrome_path.txt)
-echo "export CHROME_BIN=${CHROME_PATH}" >> /etc/environment
-CHROMEDRIVER_PATH=$(cat /chromedriver_path.txt)
-echo "export CHROMEDRIVER_BIN=${CHROMEDRIVER_PATH}" >> /etc/environment
-rm /chrome_path.txt /chromedriver_path.txt
-EOF
-
 # Bring in toolchains/artifacts (optimized with --link)
 COPY --link --from=hadolint-src   /bin/hadolint /usr/local/bin/
 # Actionlint also has shellcheck in its bin
@@ -150,9 +141,10 @@ COPY --from=browser-installer /chromedriver_path.txt /chromedriver_path.txt
 
 ADD --chmod=0044 https://cli.github.com/packages/githubcli-archive-keyring.gpg /etc/apt/keyrings/githubcli-archive-keyring.gpg
 
-# Install system packages (cached separately)
 RUN --mount=type=cache,target=/var/cache/apt,id=apt-archives,sharing=shared \
   --mount=type=cache,target=/var/lib/apt/lists,id=apt-lists,sharing=locked \
+  --mount=type=cache,target=/root/.npm,id=npm-cache-${TARGETARCH}-${NODE_VERSION},sharing=shared \
+  --mount=type=cache,target=/root/.cache/pip,id=pip-cache-${TARGETARCH},sharing=shared \
   <<EOF
 set -eux
 apt-get update
@@ -203,43 +195,48 @@ apt-get install -y --no-install-recommends \
   sudo gosu \
   xvfb
 rm -rf /var/lib/apt/lists/*
-EOF
+
+# Setup Puppeteer browser environment variables
+CHROME_PATH=$(cat /chrome_path.txt)
+echo "export CHROME_BIN=${CHROME_PATH}" >> /etc/environment
+CHROMEDRIVER_PATH=$(cat /chromedriver_path.txt)
+echo "export CHROMEDRIVER_BIN=${CHROMEDRIVER_PATH}" >> /etc/environment
+rm /chrome_path.txt /chromedriver_path.txt
 
 # Setup sudo access
-RUN <<EOF
-set -eux
 echo "ubuntu ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers.d/ubuntu
 chmod 0440 /etc/sudoers.d/ubuntu
-EOF
 
-# Install and configure npm (cached separately)
-RUN --mount=type=cache,target=/root/.npm,id=npm-cache-${TARGETARCH},sharing=shared \
-  <<EOF
-set -eux
+gosu ubuntu bash <<BACK_TO_ROOT
+# Install and configure npm
 npm install -g npm@latest
-gosu ubuntu npm config set '@deque:registry=https://agora.dequecloud.com/artifactory/api/npm/dequelabs/'
+## Setup registry for main user and root
 npm config set '@deque:registry=https://agora.dequecloud.com/artifactory/api/npm/dequelabs/'
+## Disable funding messages and automatic audits
 npm config set fund false
 npm config set audit false
+## Reduce output to keep CI logs clean
 npm config set progress false
+## Prefer the offline modules when possible to speed up installs
+## Particularly useful in CI environments with caching enabled
 npm config set prefer-offline true
+## Help network or registry issues by massaging the network config
 npm config set fetch-retries 6
 npm config set fetch-retry-mintimeout 20000
 npm config set fetch-retry-maxtimeout 120000
 
+## Help the network with yarn too as best we can.
 yarn config set prefer-offline true
 yarn config set network-timeout 300000
 yarn config set network-concurrency 8
-EOF
 
-# Setup Python virtual environment (cached separately)
-RUN --mount=type=cache,target=/root/.cache/pip,id=pip-cache-${TARGETARCH},sharing=shared \
-  <<EOF
-set -eux
+# Setup Python virtual environment for main user
 python3.12 -m venv /opt/venv
 chown -R root:ubuntu /opt/venv
 chmod -R 775 /opt/venv
 /opt/venv/bin/pip install --no-cache-dir pip-licenses autopep8 pylint
+
+BACK_TO_ROOT
 EOF
 
 WORKDIR /workspaces
