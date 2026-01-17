@@ -14,28 +14,22 @@ set -euoC pipefail
 : "${NODE_SUFFIX:?NODE_SUFFIX must be set}"
 : "${GITHUB_OUTPUT:?GITHUB_OUTPUT must be set}"
 
-YEAR_WEEK=$(date -u +"%Y-W%V")
 
 case "$EVENT_NAME" in
   schedule)
-    RUN_TYPE="on.scheduled"
-    UNIQUE="${RUN_NUMBER}-${RUN_ATTEMPT}"
+    YEAR_WEEK=$(date -u +"%Y-W%V")
+    TAG="on.scheduled-${YEAR_WEEK}"
     ;;
   push)
-    RUN_TYPE="on.push"
-    UNIQUE="${SHA:0:7}"
+    TAG="on.push-${SHA:0:7}"
     ;;
   workflow_dispatch)
-    RUN_TYPE="on.manual"
-    UNIQUE="${RUN_NUMBER}_${RUN_ATTEMPT}_$(date -u +"%H%M%S")"
+    UNIQUE="${RUN_NUMBER}_${RUN_ATTEMPT}_$(date -u +"%Y-%m-%d-%H-%M-%S")"
+    TAG="on.manual-${UNIQUE}"
     ;;
   *)
-    RUN_TYPE="on.$EVENT_NAME"
-    UNIQUE="${RUN_NUMBER}-${RUN_ATTEMPT}"
+    TAG="on.${EVENT_NAME}-${RUN_NUMBER}_${RUN_ATTEMPT}"
     ;;
 esac
 
-TAG="${YEAR_WEEK}-${RUN_TYPE}-${UNIQUE}"
-
-echo "Docker Tag: $TAG"
 echo "TAG=$TAG" >> "$GITHUB_OUTPUT"

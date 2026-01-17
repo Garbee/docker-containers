@@ -88,7 +88,6 @@ jobs:
       url: ${{ vars.BASE_URL }}-node.${{ matrix.node-version }}
 
     env:
-      NODE_SUFFIX: "-node.${{ matrix.node-version }}"
       GHCR_IMAGE: ghcr.io/garbee/${{ vars.IMAGE_NAME }}-node.${{ matrix.node-version }}
 
     steps:
@@ -140,7 +139,7 @@ jobs:
       - name: Upload digest
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
-          name: digests-${{ matrix.platform_pair }}${{ env.NODE_SUFFIX }}
+          name: digests-${{ matrix.node-version }}
           path: ${{ runner.temp }}/digests/*
           if-no-files-found: error
           retention-days: 1
@@ -166,7 +165,6 @@ jobs:
       url: ${{ vars.BASE_URL }}-node.${{ matrix.node-version }}
 
     env:
-      NODE_SUFFIX: "-node.${{ matrix.node-version }}"
       GHCR_IMAGE: ghcr.io/garbee/${{ vars.IMAGE_NAME }}-node.${{ matrix.node-version }}
 
     steps:
@@ -179,7 +177,7 @@ jobs:
         uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
         with:
           path: ${{ runner.temp }}/digests
-          pattern: digests-*${{ env.NODE_SUFFIX }}
+          pattern: digests-${{ matrix.node-version }}
           merge-multiple: true
 
       - name: Generate Docker tag
