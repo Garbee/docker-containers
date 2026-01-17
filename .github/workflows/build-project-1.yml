@@ -246,42 +246,7 @@ jobs:
         env:
           IMAGE: "${{ env.GHCR_IMAGE }}:${{ steps.meta.outputs.version }}"
           MAX_SIZE_GB: 2.2
-        run: |
-          set -e
-          docker pull "$IMAGE"
-          # Get image size in GB
-          IMAGE_SIZE_BYTES=$(docker inspect "$IMAGE" --format='{{.Size}}')
-          IMAGE_SIZE_GB=$(echo "scale=2; $IMAGE_SIZE_BYTES / 1073741824" | bc)
-          echo "Image size: ${IMAGE_SIZE_GB} GB (max allowed: ${MAX_SIZE_GB} GB)"
-          # Check size constraint
-          SIZE_OK=$(echo "$IMAGE_SIZE_GB <= $MAX_SIZE_GB" | bc)
-          if [ "$SIZE_OK" -eq 0 ]; then
-            echo "::error::Image exceeds maximum size limit of ${MAX_SIZE_GB} GB"
-
-            tee -a "$GITHUB_STEP_SUMMARY" <<EOF
-            # Image Size Verification
-
-            - **Image:** "${IMAGE}"
-            - **Size:** ${IMAGE_SIZE_GB} GB
-            - **Maximum Allowed Size:** ${MAX_SIZE_GB} GB
-
-            ## Result: ❌ Image exceeds the maximum allowed size.
-
-            EOF
-
-            exit 1
-          fi
-          echo "::notice::Image size is within limits"
-          tee -a "$GITHUB_STEP_SUMMARY" <<EOF
-          # Image Size Verification
-
-          - **Image:** "${IMAGE}"
-          - **Size:** ${IMAGE_SIZE_GB} GB
-          - **Maximum Allowed Size:** ${MAX_SIZE_GB} GB
-
-          ## Result: ✅ Size is within the allowed limit.
-
-          EOF
+        run: ./bin/verify-image-size.sh
 
       - name: Audit image with dive
         id: dive-audit
@@ -289,34 +254,5 @@ jobs:
         env:
           IMAGE: "${{ env.GHCR_IMAGE }}:${{ steps.meta.outputs.version }}"
           MIN_EFFICIENCY: 98
-        run: |
-          set -eo pipefail
-          gh release download --pattern '*_linux_amd64.deb' --repo wagoodman/dive --output dive.deb
-          sudo apt-get install -y ./dive.deb
-          rm ./dive.deb
-
-          # Pull the image for inspection
-          docker pull "$IMAGE"
-
-          # Run dive to analyze the image
-          # Dive uses the `.dive-ci` configuration file to decide to pass/fail
-          diveOutput=$(dive "$IMAGE")
-          diveStatus=$?
-
-          tee -a "$GITHUB_STEP_SUMMARY" <<EOF
-          # Dive Image Audit
-
-          - **Image:** "${IMAGE}"
-          - **Dive Exit Status:** "${diveStatus}"
-          - **Minimum Efficiency Required:** "${MIN_EFFICIENCY}"%
-          - **Result**: ${diveStatus -eq 0 && '✅ Passed' || '❌ Failed'}
-
-          ## Dive Output
-
-          ```
-            ${diveOutput}
-          ```
-
-          EOF
-
-          exit "$diveStatus"
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: ./bin/dive-audit.sh
