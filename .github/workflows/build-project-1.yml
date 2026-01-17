@@ -8,6 +8,11 @@ on:
         required: false
         type: boolean
         default: false
+      production:
+        description: "Deploy to production environment"
+        required: false
+        type: boolean
+        default: false
 
   schedule:
     # Run at 3:17 AM UTC every Sunday
@@ -84,7 +89,7 @@ jobs:
     name: Build for ${{ matrix.platform }} (Node ${{ matrix.node-version }})
 
     environment:
-      name: ${{ github.event_name == 'push' && 'docker-dev' || 'docker-production' }}
+      name: ${{ github.event_name == 'push' && 'docker-dev' || inputs.production && 'docker-production' || github.event_name == 'schedule' && 'docker-production' || 'docker-dev' }}
       url: ${{ vars.BASE_URL }}-node.${{ matrix.node-version }}
 
     env:
@@ -161,7 +166,7 @@ jobs:
       - build
 
     environment:
-      name: ${{ github.event_name == 'push' && 'docker-dev' || 'docker-production' }}
+      name: ${{ github.event_name == 'push' && 'docker-dev' || inputs.production && 'docker-production' || github.event_name == 'schedule' && 'docker-production' || 'docker-dev' }}
       url: ${{ vars.BASE_URL }}-node.${{ matrix.node-version }}
 
     env:
