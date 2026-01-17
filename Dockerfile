@@ -1,26 +1,49 @@
 # hadolint global ignore=DL3008,DL3013
 # syntax=docker/dockerfile:1
 
-ARG IMAGE_VERSION=0
 ARG TARGETARCH
 
+# ----------------------------------
+# Platform Images
+# ----------------------------------
+# These are configurable at build-time. Reason being,
+# we need these language runtimes (and some associated tools)
+# to change at-will for testing and matrix builds.
+# Sane defaults are provided so someone can just `docker build .`.
+# But in production builds, these will always be given externally.
 ARG NODE_VERSION=22.22.0
 ARG GRADLE_VERSION=8.14.3
 ARG JAVA_VERSION=21.0.9_10
-
 FROM node:${NODE_VERSION}-bookworm-slim AS node-src
 FROM gradle:${GRADLE_VERSION}-jdk21-noble AS gradle-src
 FROM eclipse-temurin:${JAVA_VERSION}-jdk-noble AS jdk-src
+# ----------------------------------
+# End Platform Images
+# ----------------------------------
+
+# ----------------------------------
+# General Tool images
+# ----------------------------------
+# These are images we apply fixed versions to.
+# This way Dependabot will update them as available and we
+# stay in a known state.
 FROM hadolint/hadolint:v2.14.0-debian AS hadolint-src
 FROM rhysd/actionlint:1.7.8 AS actionlint-src
 FROM mvdan/shfmt:v3.12.0 AS shfmt-src
 FROM mikefarah/yq:4.50.1 AS yq-src
 FROM ghcr.io/zizmorcore/zizmor:1.21.0 AS zizmor-src
 FROM ghcr.io/jqlang/jq:1.8.1 AS jq-src
+# ----------------------------------
+# End General Tool Images
+# ----------------------------------
+
 # Just setting this one up for re-use so it only needs to be updated in one place.
-FROM ubuntu:noble-20251013 AS base-runtime
+# Useful in case we add new stages so the same base is used everywhere.
+FROM ubuntu:noble-20260113 AS base-runtime
 
 # ---------- Browser installation stage ----------
+# Use node-src as the base since it has npm/npx available
+# without spending extra time to install it to the base-runtime.
 FROM node-src AS browser-installer
 ARG TARGETARCH
 ARG PUPPETEER_CACHE_DIR=/browsers
@@ -44,13 +67,20 @@ EOF
 
 # ---------- Final dev runtime ----------
 FROM base-runtime AS dev-runtime
-ARG IMAGE_VERSION
 ARG TARGETARCH
 ARG DEBIAN_FRONTEND=noninteractive
 ARG APT_LISTCHANGES_FRONTEND=none
 ARG UCF_FORCE_CONFFNEW=1
 
-LABEL org.opencontainers.image.licenses="CC-PDM-1.0"
+LABEL org.opencontainers.image.title="Development Container" \
+      org.opencontainers.image.description="Development environment with Node.js, Java, Gradle, Python, and various dev tools installed." \
+      org.opencontainers.image.url="https://github.com/garbee/docker-containers" \
+      org.opencontainers.image.source="https://github.com/garbee/docker-containers" \
+      org.opencontainers.image.documentation="https://github.com/garbee/docker-containers" \
+      org.opencontainers.image.vendor="Garbee" \
+      org.opencontainers.image.licenses="CC-PDM-1.0" \
+      org.opencontainers.image.authors="Garbee" \
+      me.garbee.environments="development,ci"
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
@@ -85,6 +115,23 @@ mkdir -p /etc/apt/keyrings
 chmod 755 /etc/apt/keyrings
 mkdir -p /etc/apt/sources.list.d
 chmod 755 /etc/apt/sources.list.d
+EOF
+
+# Setup sudo access
+RUN <<EOF
+set -eux
+echo "ubuntu ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers.d/ubuntu
+chmod 0440 /etc/sudoers.d/ubuntu
+EOF
+
+# Setup Puppeteer browser environment variables
+RUN <<EOF
+set -eux
+CHROME_PATH=$(cat /chrome_path.txt)
+echo "export CHROME_BIN=${CHROME_PATH}" >> /etc/environment
+CHROMEDRIVER_PATH=$(cat /chromedriver_path.txt)
+echo "export CHROMEDRIVER_BIN=${CHROMEDRIVER_PATH}" >> /etc/environment
+rm /chrome_path.txt /chromedriver_path.txt
 EOF
 
 # Bring in toolchains/artifacts (optimized with --link)
@@ -165,13 +212,6 @@ apt-get install -y --no-install-recommends \
 rm -rf /var/lib/apt/lists/*
 EOF
 
-# Setup sudo access
-RUN <<EOF
-set -eux
-echo "ubuntu ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers.d/ubuntu
-chmod 0440 /etc/sudoers.d/ubuntu
-EOF
-
 # Install and configure npm (cached separately)
 RUN --mount=type=cache,target=/root/.npm,id=npm-cache-${TARGETARCH},sharing=shared \
   <<EOF
@@ -200,16 +240,6 @@ python3.12 -m venv /opt/venv
 chown -R root:ubuntu /opt/venv
 chmod -R 775 /opt/venv
 /opt/venv/bin/pip install --no-cache-dir pip-licenses autopep8 pylint
-EOF
-
-# Setup Puppeteer browser environment variables
-RUN <<EOF
-set -eux
-CHROME_PATH=$(cat /chrome_path.txt)
-echo "export CHROME_BIN=${CHROME_PATH}" >> /etc/environment
-CHROMEDRIVER_PATH=$(cat /chromedriver_path.txt)
-echo "export CHROMEDRIVER_BIN=${CHROMEDRIVER_PATH}" >> /etc/environment
-rm /chrome_path.txt /chromedriver_path.txt
 EOF
 
 WORKDIR /workspaces

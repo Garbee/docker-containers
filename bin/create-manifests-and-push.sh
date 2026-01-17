@@ -49,20 +49,7 @@ echo "::group::Tag arguments to be applied"
 printf '%s\n' "${tag_args[@]}"
 echo "::endgroup::"
 
-# The description is plain text. No markdown is parsed.
-description="Development container with Node.js ${NODE_VERSION}, Java, Gradle, Python, and browser testing tools"
-
-# Check if the description is over 512 characters
-if [ ${#description} -gt 512 ]; then
-  echo "::error::Description is too long (${#description} characters). Maximum allowed is 512 characters." >&2
-  exit 1
-fi
-
 docker buildx imagetools create \
   "${tag_args[@]}" \
-  --annotation="index:org.opencontainers.image.description=${description}" \
   --annotation="index:org.opencontainers.image.created=${timestamp}" \
-  --annotation='index:org.opencontainers.image.url=https://github.com/garbee/docker-containers' \
-  --annotation='index:org.opencontainers.image.source=https://github.com/garbee/docker-containers' \
-  --annotation='index:org.opencontainers.image.licenses=CC-PDM-1.0' \
   "${digests[@]}"
