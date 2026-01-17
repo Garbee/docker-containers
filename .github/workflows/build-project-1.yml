@@ -208,10 +208,6 @@ jobs:
         uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051 # v5.10.0
         with:
           images: ${{ env.GHCR_IMAGE }}
-          annotations: |
-            type=org.opencontainers.image.description,value=Development container with Node.js, Java, Gradle, Python, and browser testing tools
-            type=org.opencontainers.licenses,value=CC-PDM-1.0
-            type=org.opencontainers.image.url,value=https://github.com/garbee/docker-containers
           tags: |
             type=sha,prefix={{branch}}-,suffix=${{ env.NODE_SUFFIX }}
             type=raw,value=main${{ env.NODE_SUFFIX }},enable=${{ github.ref_name == 'main' }}
