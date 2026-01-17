@@ -49,7 +49,7 @@ timestamp=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 echo "Using timestamp: $timestamp"
 
 # Build tag arguments array
-mapfile -t tags < <(jq -r '.tags[] | "-t " + .' <<< "$DOCKER_METADATA_OUTPUT_JSON")
+mapfile -t tags < <(jq -r '.tags[]' <<< "$DOCKER_METADATA_OUTPUT_JSON")
 
 echo "::group::Tags to be applied"
 printf '%s\n' "${tags[@]}"
@@ -74,8 +74,17 @@ echo "::endgroup::"
 # Escape newlines so it doesn't break the annotation itself.
 readme_annotation=${readme_contents//$'\n'/\\n}
 
+tag_args=()
+for tag in "${tags[@]}"; do
+  tag_args+=(-t "$tag")
+done
+
+echo "::group::Tag arguments to be applied"
+printf '%s\n' "${tag_args[@]}"
+echo "::endgroup::"
+
 docker buildx imagetools create \
-  "${tags[@]}" \
+  "${tag_args[@]}" \
   --annotation="index:org.opencontainers.image.description=${readme_annotation}" \
   --annotation="index:org.opencontainers.image.created=${timestamp}" \
   --annotation='index:org.opencontainers.image.url=https://github.com/garbee/docker-containers' \
