@@ -2,7 +2,7 @@ name: Clean Dev Images
 
 on:
   schedule:
-    - cron: "0 3 * * 0" # Every Sunday at 03:00 UTC
+    - cron: "13 18 * * 5"
   workflow_dispatch:
 
 permissions: {}
@@ -22,14 +22,17 @@ jobs:
           - 20
           - 22
           - 24
+        environment:
+          - docker-dev
+          - docker-pr
     environment:
-      name: docker-dev
+      name: ${{ matrix.environment }}
     permissions:
       packages: write # Ability to delete packages from GHCR.
       contents: read
     steps:
       - name: Delete Packages
-        uses: actions/delete-package-versions@v5
+        uses: actions/delete-package-versions@e5bc658cc4c965c472efe991f8beea3981499c55 # v5.0.0
         with:
           package-name: ${{ vars.IMAGE_NAME }}-node.${{ matrix.node-version }}
           package-type: container
