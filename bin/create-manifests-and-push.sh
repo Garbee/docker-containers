@@ -39,11 +39,21 @@ $versions_table
 
 "
 
+echo "::group::Generated README Contents"
+echo -e "$readme_contents"
+echo "::endgroup::"
+
 # Get the current execution timestamp in RFC3339 format.
 timestamp=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
+echo "Using timestamp: $timestamp"
+
 # Build tag arguments array
 mapfile -t tags < <(jq -r '.tags[] | "-t " + .' <<< "$DOCKER_METADATA_OUTPUT_JSON")
+
+echo "::group::Tags to be applied"
+printf '%s\n' "${tags[@]}"
+echo "::endgroup::"
 
 # Build digest references array from /tmp/digests
 if ! compgen -G "${DIGEST_PATH}/*" > /dev/null; then
@@ -56,6 +66,10 @@ for f in "${DIGEST_PATH}"/*; do
   digest_name=$(basename "$f")
   digests+=("${NEEDS_BUILD_OUTPUTS_GHCR_IMAGE}@sha256:${digest_name}")
 done
+
+echo "::group::Digest references to be included"
+printf '%s\n' "${digests[@]}"
+echo "::endgroup::"
 
 docker buildx imagetools create \
   "${tags[@]}" \
