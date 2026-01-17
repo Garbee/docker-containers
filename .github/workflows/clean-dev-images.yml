@@ -1,0 +1,36 @@
+name: Clean Dev Images
+
+on:
+  schedule:
+    - cron: "0 3 * * 0" # Every Sunday at 03:00 UTC
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: true
+
+jobs:
+  clean:
+    name: Remove Images
+    runs-on: ubuntu-slim
+    strategy:
+      matrix:
+        node-version:
+          - 20
+          - 22
+          - 24
+    environment:
+      name: docker-dev
+    permissions:
+      packages: write # Ability to delete packages from GHCR.
+    steps:
+      - name: Delete Packages
+        uses: actions/delete-package-versions@v5
+        with:
+          # This needs to match the GHCR_IMAGE name used in the build workflow
+          package-name: ghcr.io/garbee/${{ vars.IMAGE_NAME }}-node.${{ matrix.node-version }}
+          package-type: container
+          # Try to delete everything
+          min-versions-to-keep: 0
