@@ -4,7 +4,7 @@ set -euo pipefail
 
 # Validate required environment variables
 : "${DOCKER_METADATA_OUTPUT_JSON:?DOCKER_METADATA_OUTPUT_JSON must be set}"
-: "${NEEDS_BUILD_OUTPUTS_GHCR_IMAGE:?NEEDS_BUILD_OUTPUTS_GHCR_IMAGE must be set}"
+: "${GHCR_IMAGE:?GHCR_IMAGE must be set}"
 : "${NODE_VERSION:?NODE_VERSION must be set}"
 : "${DIGEST_PATH:?DIGEST_PATH must be set}"
 
@@ -33,7 +33,7 @@ fi
 digests=()
 for f in "${DIGEST_PATH}"/*; do
   digest_name=$(basename "$f")
-  digests+=("${NEEDS_BUILD_OUTPUTS_GHCR_IMAGE}@sha256:${digest_name}")
+  digests+=("${GHCR_IMAGE}@sha256:${digest_name}")
 done
 
 echo "::group::Digest references to be included"

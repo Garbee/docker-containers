@@ -24,6 +24,7 @@ concurrency:
 
 env:
   IMAGE_NAME: project-1
+  GHCR_IMAGE: ghcr.io/garbee/project-1
 
 jobs:
   versions:
@@ -81,9 +82,6 @@ jobs:
 
     name: Build for ${{ matrix.platform }} (Node ${{ matrix.node-version }})
 
-    outputs:
-      GHCR_IMAGE: ${{ steps.prepare.outputs.GHCR_IMAGE }}
-
     env:
       NODE_SUFFIX: -node${{ matrix.node-version }}
 
@@ -96,12 +94,8 @@ jobs:
         id: prepare
         env:
           PLATFORM: ${{ matrix.platform }}
-          OWNER: ${{ github.repository_owner }}
-          NODE_VERSION: ${{ matrix.node-version }}
         run: |
           echo "PLATFORM_PAIR=${PLATFORM//\//-}" >> "$GITHUB_OUTPUT"
-          LOWER_OWNER=$(echo "$OWNER" | tr '[:upper:]' '[:lower:]')
-          echo "GHCR_IMAGE=ghcr.io/$LOWER_OWNER/${IMAGE_NAME}" >> "$GITHUB_OUTPUT"
       - name: Checkout
         uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
         with:
@@ -117,7 +111,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051 # v5.10.0
         with:
-          images: ${{ steps.prepare.outputs.GHCR_IMAGE }}
+          images: ${{ env.GHCR_IMAGE }}
 
       - name: Set up Docker Context for Buildx
         # This step sets up a Docker context for Buildx.
@@ -166,7 +160,7 @@ jobs:
             GRADLE_VERSION=${{ needs.versions.outputs.gradle }}
             ACTIONLINT_VERSION=${{ needs.versions.outputs.actionlint }}
             HADOLINT_VERSION=${{ needs.versions.outputs.hadolint }}
-          outputs: type=image,name=${{ steps.prepare.outputs.GHCR_IMAGE }},push-by-digest=true,name-canonical=true,push=true
+          outputs: type=image,name=${{ env.GHCR_IMAGE }},push-by-digest=true,name-canonical=true,push=true
 
       - name: Export digest
         env:
@@ -263,7 +257,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051 # v5.10.0
         with:
-          images: ${{ needs.build.outputs.GHCR_IMAGE }}
+          images: ${{ env.GHCR_IMAGE }}
           annotations: |
             type=org.opencontainers.image.description,value=Development container with Node.js, Java, Gradle, Python, and browser testing tools
             type=org.opencontainers.licenses,value=CC-PDM-1.0
@@ -301,7 +295,6 @@ jobs:
         id: manifest-annotate
         continue-on-error: false
         env:
-          NEEDS_BUILD_OUTPUTS_GHCR_IMAGE: ${{ needs.build.outputs.GHCR_IMAGE }}
           NODE_VERSION: ${{ matrix.node-version }}
           DIGEST_PATH: /tmp/digests
         run: ./bin/create-manifests-and-push.sh
@@ -312,7 +305,7 @@ jobs:
       - name: Inspect image
         id: inspect
         env:
-          IMAGE: "${{ needs.build.outputs.GHCR_IMAGE }}:${{ steps.meta.outputs.version }}"
+          IMAGE: "${{ env.GHCR_IMAGE }}:${{ steps.meta.outputs.version }}"
         run: docker buildx imagetools inspect "$IMAGE"
 
       - name: Delete Artifacts
