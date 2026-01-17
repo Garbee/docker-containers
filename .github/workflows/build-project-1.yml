@@ -2,6 +2,13 @@ name: Build Project 1
 
 on:
   workflow_dispatch:
+    inputs:
+      force_latest:
+        description: "Force this build to be tagged as latest"
+        required: false
+        type: boolean
+        default: false
+
   schedule:
     # Run at 3:17 AM UTC every Sunday
     - cron: "17 3 * * 0"
@@ -82,7 +89,7 @@ jobs:
     name: Build for ${{ matrix.platform }} (Node ${{ matrix.node-version }})
 
     env:
-      NODE_SUFFIX: -node${{ matrix.node-version }}
+      NODE_SUFFIX: "-node.${{ matrix.node-version }}"
 
     steps:
       - name: Checkout
@@ -138,7 +145,6 @@ jobs:
           retention-days: 1
 
   merge:
-    # This job merges the Docker manifests for the different platforms built in the previous job.
     name: Merge Docker manifests (Node ${{ matrix.node-version }})
     runs-on: ubuntu-latest
 
@@ -158,7 +164,7 @@ jobs:
       - build
 
     env:
-      NODE_SUFFIX: -node${{ matrix.node-version }}
+      NODE_SUFFIX: "-node.${{ matrix.node-version }}"
 
     steps:
       - name: Checkout
@@ -180,33 +186,7 @@ jobs:
           SHA: ${{ github.sha }}
           RUN_NUMBER: ${{ github.run_number }}
           RUN_ATTEMPT: ${{ github.run_attempt }}
-          NODE_SUFFIX: ${{ env.NODE_SUFFIX }}
-        run: |
-          YEAR_WEEK=$(date -u +"%Y-W%V")
-
-          case "$EVENT_NAME" in
-            schedule)
-              RUN_TYPE="scheduled"
-              UNIQUE="${RUN_NUMBER}-${RUN_ATTEMPT}"
-              ;;
-            push)
-              RUN_TYPE="push"
-              UNIQUE="${SHA:0:7}"
-              ;;
-            workflow_dispatch)
-              RUN_TYPE="manual"
-              UNIQUE="${RUN_NUMBER}-${RUN_ATTEMPT}-$(date -u +"%H%M%S")"
-              ;;
-            *)
-              RUN_TYPE="$EVENT_NAME"
-              UNIQUE="${RUN_NUMBER}-${RUN_ATTEMPT}"
-              ;;
-          esac
-
-          TAG="${YEAR_WEEK}-${RUN_TYPE}-${UNIQUE}${NODE_SUFFIX}"
-
-          echo "Docker Tag: $TAG"
-          echo "TAG=$TAG" >> "$GITHUB_OUTPUT"
+        run: ./bin/generate-docker-tag.sh
 
       - name: Docker meta
         id: meta
@@ -218,12 +198,13 @@ jobs:
             type=org.opencontainers.licenses,value=CC-PDM-1.0
             type=org.opencontainers.image.url,value=https://github.com/garbee/docker-containers
           tags: |
+            type=sha,prefix={{branch}}-,suffix=${{ env.NODE_SUFFIX }}
             type=raw,value=main${{ env.NODE_SUFFIX }},enable=${{ github.ref_name == 'main' }}
-            type=raw,value=latest,enable=${{ github.ref_name == 'main' && matrix.node-version == '22' }}
+            type=raw,value=latest,enable=${{ (github.ref_name == 'main' || inputs.force_latest) && matrix.node-version == '22' }}
             type=raw,value=${{ steps.tag_info.outputs.TAG }}
-            type=raw,value=on:manual${{ env.NODE_SUFFIX }},enable=${{ github.event_name == 'workflow_dispatch' }}
-            type=raw,value=on:scheduled${{ env.NODE_SUFFIX }},enable=${{ github.event_name == 'schedule' }}
-            type=raw,value=on:push${{ env.NODE_SUFFIX }},enable=${{ github.event_name == 'push' }}
+            type=raw,value=on.manual${{ env.NODE_SUFFIX }},enable=${{ github.event_name == 'workflow_dispatch' }}
+            type=raw,value=on.scheduled${{ env.NODE_SUFFIX }},enable=${{ github.event_name == 'schedule' }}
+            type=raw,value=on.push${{ env.NODE_SUFFIX }},enable=${{ github.event_name == 'push' }}
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
@@ -232,16 +213,10 @@ jobs:
 
       - name: Login to GitHub Container Registry
         uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # v3.6.0
-        # This step logs in to the GitHub Container Registry (GHCR) using the docker/login-action.
-        # It uses the GitHub actor's username and the GITHUB_TOKEN secret for authentication.
-        # The login is necessary to push the merged manifest list to GHCR.
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Debug
-        run: ls -lRha "${{ runner.temp }}/digests"
 
       - name: Create manifest list and pushes
         id: manifest-annotate
@@ -256,10 +231,3 @@ jobs:
         env:
           IMAGE: "${{ env.GHCR_IMAGE }}:${{ steps.meta.outputs.version }}"
         run: docker buildx imagetools inspect "$IMAGE"
-
-      - name: Delete Artifacts
-        uses: geekyeggo/delete-artifact@f275313e70c08f6120db482d7a6b98377786765b # v5.1.0
-        if: always()
-        with:
-          name: |
-            digests-*${{ env.NODE_SUFFIX }}
