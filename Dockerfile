@@ -151,6 +151,8 @@ RUN --mount=type=cache,target=/var/cache/apt,id=apt-archives,sharing=shared \
   <<EOF
 set -euxo pipefail
 apt-get update
+# In order to get apt-add-repository we need to install software-properties-common
+# Then we install all the main packages at once.
 apt-get install -y --no-install-recommends software-properties-common
 add-apt-repository ppa:git-core/ppa -y
 echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | tee /etc/apt/sources.list.d/github-cli.list > /dev/null
