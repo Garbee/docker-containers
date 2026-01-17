@@ -103,6 +103,9 @@ ENV PATH="/usr/local/lib/node_modules/bin:\
   TZ=UTC
 
 RUN <<EOF
+set -euxo pipefail
+:"${PUPPETEER_CACHE_DIR:?PUPPETEER_CACHE_DIR must be set}"
+
 groupadd -r node
 usermod -aG node ubuntu
 usermod -aG staff ubuntu
@@ -146,7 +149,7 @@ RUN --mount=type=cache,target=/var/cache/apt,id=apt-archives,sharing=shared \
   --mount=type=cache,target=/root/.npm,id=npm-cache-${TARGETARCH}-${NODE_VERSION},sharing=shared \
   --mount=type=cache,target=/root/.cache/pip,id=pip-cache-${TARGETARCH},sharing=shared \
   <<EOF
-set -eux
+set -euxo pipefail
 apt-get update
 apt-get install -y --no-install-recommends software-properties-common
 add-apt-repository ppa:git-core/ppa -y
@@ -207,36 +210,36 @@ rm /chrome_path.txt /chromedriver_path.txt
 echo "ubuntu ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers.d/ubuntu
 chmod 0440 /etc/sudoers.d/ubuntu
 
-gosu ubuntu bash <<BACK_TO_ROOT
-# Install and configure npm
+# Install latest npm version globally
 npm install -g npm@latest
-## Setup registry for main user and root
-npm config set '@deque:registry=https://agora.dequecloud.com/artifactory/api/npm/dequelabs/'
+
+## Configure npm and yarn
+npm config set -g '@deque:registry=https://agora.dequecloud.com/artifactory/api/npm/dequelabs/'
 ## Disable funding messages and automatic audits
-npm config set fund false
-npm config set audit false
+npm config set -g fund false
+npm config set -g audit false
 ## Reduce output to keep CI logs clean
-npm config set progress false
+npm config set -g progress false
 ## Prefer the offline modules when possible to speed up installs
 ## Particularly useful in CI environments with caching enabled
-npm config set prefer-offline true
+npm config set -g prefer-offline true
 ## Help network or registry issues by massaging the network config
-npm config set fetch-retries 6
-npm config set fetch-retry-mintimeout 20000
-npm config set fetch-retry-maxtimeout 120000
+npm config set -g fetch-retries 6
+npm config set -g fetch-retry-mintimeout 20000
+npm config set -g fetch-retry-maxtimeout 120000
 
 ## Help the network with yarn too as best we can.
-yarn config set prefer-offline true
-yarn config set network-timeout 300000
-yarn config set network-concurrency 8
+cat > /etc/.yarnrc <<EOYARNRC
+prefer-offline true
+network-timeout 300000
+network-concurrency 8
+EOYARNRC
 
 # Setup Python virtual environment for main user
 python3.12 -m venv /opt/venv
 chown -R root:ubuntu /opt/venv
 chmod -R 775 /opt/venv
 /opt/venv/bin/pip install --no-cache-dir pip-licenses autopep8 pylint
-
-BACK_TO_ROOT
 EOF
 
 WORKDIR /workspaces
