@@ -165,7 +165,7 @@ jobs:
             GRADLE_VERSION=${{ needs.versions.outputs.gradle }}
             ACTIONLINT_VERSION=${{ needs.versions.outputs.actionlint }}
             HADOLINT_VERSION=${{ needs.versions.outputs.hadolint }}
-          outputs: type=image,name=${{ steps.prepare.outputs.GHCR_IMAGE }},push-by-digest=true,name-canonical=true,push=true,oci-mediatypes=true
+          outputs: type=image,name=${{ steps.prepare.outputs.GHCR_IMAGE }},push-by-digest=true,name-canonical=true,push=true
 
       - name: Export digest
         env:
