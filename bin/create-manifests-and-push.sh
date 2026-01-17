@@ -5,7 +5,6 @@ set -euo pipefail
 # Validate required environment variables
 : "${DOCKER_METADATA_OUTPUT_JSON:?DOCKER_METADATA_OUTPUT_JSON must be set}"
 : "${NEEDS_BUILD_OUTPUTS_GHCR_IMAGE:?NEEDS_BUILD_OUTPUTS_GHCR_IMAGE must be set}"
-: "${INSTALLED_VERSIONS:?INSTALLED_VERSIONS must be set}"
 : "${NODE_VERSION:?NODE_VERSION must be set}"
 : "${DIGEST_PATH:?DIGEST_PATH must be set}"
 
