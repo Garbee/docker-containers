@@ -13,7 +13,6 @@ on:
         required: false
         type: boolean
         default: false
-
   schedule:
     # Run at 3:17 AM UTC every Sunday
     - cron: "17 3 * * 0"
@@ -22,15 +21,17 @@ on:
       - "Dockerfile"
       - ".github/workflows/build-project-1.yml"
       - "bin/**"
+  pull_request:
+    paths:
+      - "Dockerfile"
+      - ".github/workflows/build-project-1.yml"
+      - "bin/**"
 
 permissions:
-  # Global permissions for the workflow, which can be overridden at the job level
   contents: read
 
 concurrency:
-  # This concurrency group ensures that only one job in the group runs at a time.
-  # If a new job is triggered, the previous one will be canceled.
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.head_ref || github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -54,7 +55,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: ./bin/get-latest-tool-versions.sh
-  # The build job builds the Docker image for each platform specified in the matrix.
+
   build:
     needs:
       - versions
@@ -87,7 +88,7 @@ jobs:
     name: Build for ${{ matrix.platform }} (Node ${{ matrix.node-version }})
 
     environment:
-      name: ${{ github.event_name == 'push' && 'docker-dev' || inputs.production && 'docker-production' || github.event_name == 'schedule' && 'docker-production' || 'docker-dev' }}
+      name: ${{ github.event_name == 'push' && 'docker-dev' || inputs.production && 'docker-production' || github.event_name == 'schedule' && 'docker-production' || github.event_name == 'pull_request' && 'docker-pr' || 'docker-dev' }}
       url: ${{ vars.BASE_URL }}-node.${{ matrix.node-version }}
 
     env:
@@ -164,7 +165,7 @@ jobs:
       - build
 
     environment:
-      name: ${{ github.event_name == 'push' && 'docker-dev' || inputs.production && 'docker-production' || github.event_name == 'schedule' && 'docker-production' || 'docker-dev' }}
+      name: ${{ github.event_name == 'push' && 'docker-dev' || inputs.production && 'docker-production' || github.event_name == 'schedule' && 'docker-production' || github.event_name == 'pull_request' && 'docker-pr' || 'docker-dev' }}
       url: ${{ vars.BASE_URL }}-node.${{ matrix.node-version }}
 
     env:
@@ -206,8 +207,10 @@ jobs:
             type=raw,value=latest,enable=${{ github.ref_name == 'main' || inputs.force_latest == true || 'false' }}
             type=raw,value=${{ steps.tag_info.outputs.TAG }}
             type=raw,value=on.manual,enable=${{ github.event_name == 'workflow_dispatch' }}
-            type=raw,value=on.scheduled,enable=${{ github.event_name == 'schedule' }}
-            type=raw,value=on.push,enable=${{ github.event_name == 'push' }}
+            type=raw,value=on.scheduled,enable=${{ github.event_name == 'schedule' || 'false' }}
+            type=raw,value=on.push,enable=${{ github.event_name == 'push' || 'false' }}
+            type=raw,value=on.pr,enable=${{ github.event_name == 'pull_request' || 'false' }}
+            type=raw,value=pr.${{ github.event.pull_request.number }},enable=${{ github.event_name == 'pull_request' || 'false' }}
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
@@ -243,6 +246,7 @@ jobs:
           MAX_SIZE_GB: 2.2
         run: |
           set -e
+          docker pull "$IMAGE"
           # Get image size in GB
           IMAGE_SIZE_BYTES=$(docker inspect "$IMAGE" --format='{{.Size}}')
           IMAGE_SIZE_GB=$(echo "scale=2; $IMAGE_SIZE_BYTES / 1073741824" | bc)
@@ -266,7 +270,7 @@ jobs:
 
           DIVE_VERSION=$(curl -sL "https://api.github.com/repos/wagoodman/dive/releases/latest" | grep '"tag_name":' | sed -E 's/.*"v([^"]+)".*/\1/')
           curl -fOL "https://github.com/wagoodman/dive/releases/download/v${DIVE_VERSION}/dive_${DIVE_VERSION}_linux_amd64.deb"
-          sudo apt install -y ./dive_${DIVE_VERSION}_linux_amd64.deb
+          sudo apt-get install -y ./dive_${DIVE_VERSION}_linux_amd64.deb
           rm ./dive_${DIVE_VERSION}_linux_amd64.deb
 
           # Pull the image for inspection
