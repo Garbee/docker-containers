@@ -184,7 +184,7 @@ jobs:
           pattern: digests-*${{ matrix.node-version }}
           merge-multiple: true
 
-      - name: Generate Docker tag
+      - name: Generate Docker Tag
         id: tag_info
         env:
           EVENT_NAME: ${{ github.event_name }}
@@ -202,15 +202,14 @@ jobs:
         uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051 # v5.10.0
         with:
           images: ${{ env.GHCR_IMAGE }}
+          # The tags we actually care about.
+          # 1. Branch with the name for non-PR builds.
+          # 2. `latest` which is a special primary tag only happens in the main branch when going into production.
+          # 3. The generated tag from `Generate Docker Tag`. This gives a scoped tag for every event.
           tags: |
-            type=raw,value=branch.${{ steps.normalize_branch.outputs.name }}
-            type=raw,value=latest,enable=${{ github.ref_name == 'main' || inputs.force_latest == true || 'false' }}
+            type=raw,value=branch.${{ steps.normalize_branch.outputs.name }},enabled=${{ github.event_name == 'pull_request' && 'false' || 'true' }}
+            type=raw,value=latest,enable=${{ github.ref_name == 'main' && (inputs.force_latest == true || github.event_name == 'schedule') || 'false' }}
             type=raw,value=${{ steps.tag_info.outputs.TAG }}
-            type=raw,value=on.manual,enable=${{ github.event_name == 'workflow_dispatch' }}
-            type=raw,value=on.scheduled,enable=${{ github.event_name == 'schedule' || 'false' }}
-            type=raw,value=on.push,enable=${{ github.event_name == 'push' || 'false' }}
-            type=raw,value=on.pr,enable=${{ github.event_name == 'pull_request' || 'false' }}
-            type=raw,value=pr.${{ github.event.pull_request.number }},enable=${{ github.event_name == 'pull_request' || 'false' }}
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
@@ -255,9 +254,31 @@ jobs:
           SIZE_OK=$(echo "$IMAGE_SIZE_GB <= $MAX_SIZE_GB" | bc)
           if [ "$SIZE_OK" -eq 0 ]; then
             echo "::error::Image exceeds maximum size limit of ${MAX_SIZE_GB} GB"
+
+            tee -a "$GITHUB_STEP_SUMMARY" <<EOF
+            # Image Size Verification
+
+            - **Image:** "${IMAGE}"
+            - **Size:** ${IMAGE_SIZE_GB} GB
+            - **Maximum Allowed Size:** ${MAX_SIZE_GB} GB
+
+            ## Result: ❌ Image exceeds the maximum allowed size.
+
+            EOF
+
             exit 1
           fi
-          echo "::success::Image size is within limits"
+          echo "::notice::Image size is within limits"
+          tee -a "$GITHUB_STEP_SUMMARY" <<EOF
+          # Image Size Verification
+
+          - **Image:** "${IMAGE}"
+          - **Size:** ${IMAGE_SIZE_GB} GB
+          - **Maximum Allowed Size:** ${MAX_SIZE_GB} GB
+
+          ## Result: ✅ Size is within the allowed limit.
+
+          EOF
 
       - name: Audit image with dive
         id: dive-audit
@@ -266,16 +287,33 @@ jobs:
           IMAGE: "${{ env.GHCR_IMAGE }}:${{ steps.meta.outputs.version }}"
           MIN_EFFICIENCY: 98
         run: |
-          set -e
-
-          DIVE_VERSION=$(curl -sL "https://api.github.com/repos/wagoodman/dive/releases/latest" | grep '"tag_name":' | sed -E 's/.*"v([^"]+)".*/\1/')
-          curl -fOL "https://github.com/wagoodman/dive/releases/download/v${DIVE_VERSION}/dive_${DIVE_VERSION}_linux_amd64.deb"
-          sudo apt-get install -y ./dive_${DIVE_VERSION}_linux_amd64.deb
-          rm ./dive_${DIVE_VERSION}_linux_amd64.deb
+          set -eo pipefail
+          gh release download --pattern '*_linux_amd64.deb' --repo wagoodman/dive --output dive.deb
+          sudo apt-get install -y ./dive.deb
+          rm ./dive.deb
 
           # Pull the image for inspection
           docker pull "$IMAGE"
 
           # Run dive to analyze the image
           # Dive uses the `.dive-ci` configuration file to decide to pass/fail
-          dive "$IMAGE"
+          diveOutput=$(dive "$IMAGE")
+          diveStatus=$?
+
+          tee -a "$GITHUB_STEP_SUMMARY" <<EOF
+          # Dive Image Audit
+
+          - **Image:** "${IMAGE}"
+          - **Dive Exit Status:** "${diveStatus}"
+          - **Minimum Efficiency Required:** "${MIN_EFFICIENCY}"%
+          - **Result**: ${diveStatus -eq 0 && '✅ Passed' || '❌ Failed'}
+
+          ## Dive Output
+
+          ```
+            ${diveOutput}
+          ```
+
+          EOF
+
+          exit "$diveStatus"
