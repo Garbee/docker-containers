@@ -210,7 +210,7 @@ jobs:
           # 2. `latest` which is a special primary tag only happens in the main branch when going into production.
           # 3. The generated tag from `Generate Docker Tag`. This gives a scoped tag for every event.
           tags: |
-            type=raw,value=branch.${{ steps.normalize_branch.outputs.name }},enabled=${{ github.event_name != 'pull_request' && 'true' || 'false' }}
+            type=raw,value=branch.${{ steps.normalize_branch.outputs.name }},enable=${{ github.event_name != 'pull_request' && 'true' || 'false' }}
             type=raw,value=latest,enable=${{ github.ref_name == 'main' && (inputs.force_latest == true || github.event_name == 'schedule') || 'false' }}
             type=raw,value=${{ steps.tag_info.outputs.TAG }}
 
