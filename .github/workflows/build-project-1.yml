@@ -84,6 +84,9 @@ jobs:
     outputs:
       GHCR_IMAGE: ${{ steps.prepare.outputs.GHCR_IMAGE }}
 
+    env:
+      NODE_SUFFIX: -node${{ matrix.node-version }}
+
     steps:
       - name: Prepare environment for current platform
         # This step sets up the environment for the current platform being built.
@@ -99,8 +102,6 @@ jobs:
           echo "PLATFORM_PAIR=${PLATFORM//\//-}" >> "$GITHUB_OUTPUT"
           LOWER_OWNER=$(echo "$OWNER" | tr '[:upper:]' '[:lower:]')
           echo "GHCR_IMAGE=ghcr.io/$LOWER_OWNER/${IMAGE_NAME}" >> "$GITHUB_OUTPUT"
-          # Set node version suffix for artifact naming
-          echo "NODE_SUFFIX=-node${NODE_VERSION}" >> "$GITHUB_OUTPUT"
       - name: Checkout
         uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
         with:
@@ -165,15 +166,20 @@ jobs:
             GRADLE_VERSION=${{ needs.versions.outputs.gradle }}
             ACTIONLINT_VERSION=${{ needs.versions.outputs.actionlint }}
             HADOLINT_VERSION=${{ needs.versions.outputs.hadolint }}
-          outputs: type=oci,dest=${{ runner.temp }}/image
+          outputs: type=image,name=${{ steps.prepare.outputs.GHCR_IMAGE }},push-by-digest=true,name-canonical=true,push=true
 
-      - name: Upload artifact
-        # This step uploads the OCI image artifact to GitHub Actions artifact storage.
-        # The artifact is retained for 1 day to be used by the merge job.
+      - name: Export digest
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          mkdir -p /tmp/digests
+          touch "/tmp/digests/${DIGEST#sha256:}"
+
+      - name: Upload digest
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
-          name: oci-${{ steps.prepare.outputs.PLATFORM_PAIR }}${{ steps.prepare.outputs.NODE_SUFFIX }}
-          path: ${{ runner.temp }}/image
+          name: digests-${{ steps.prepare.outputs.PLATFORM_PAIR }}${{ env.NODE_SUFFIX }}
+          path: /tmp/digests/*
           if-no-files-found: error
           retention-days: 1
 
@@ -199,26 +205,20 @@ jobs:
     needs:
       - build
 
+    env:
+      NODE_SUFFIX: -node${{ matrix.node-version }}
+
     steps:
       - name: Checkout
         uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
         with:
           persist-credentials: false
 
-      - name: Prepare node version suffix
-        id: node-prepare
-        env:
-          NODE_VERSION: ${{ matrix.node-version }}
-        run: |
-          # Set node version suffix for artifact pattern and tags
-          echo "NODE_SUFFIX=-node${NODE_VERSION}" >> "$GITHUB_OUTPUT"
-          echo "NODE_TAG_SUFFIX=-node${NODE_VERSION}" >> "$GITHUB_OUTPUT"
-
-      - name: Download OCI images
+      - name: Download digests
         uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
         with:
-          path: ${{ runner.temp }}/oci-images
-          pattern: oci-*${{ steps.node-prepare.outputs.NODE_SUFFIX }}
+          path: /tmp/digests
+          pattern: digests-*${{ env.NODE_SUFFIX }}
           merge-multiple: true
 
       - name: Generate Docker tag
@@ -228,7 +228,7 @@ jobs:
           SHA: ${{ github.sha }}
           RUN_NUMBER: ${{ github.run_number }}
           RUN_ATTEMPT: ${{ github.run_attempt }}
-          NODE_SUFFIX: ${{ steps.node-prepare.outputs.NODE_TAG_SUFFIX }}
+          NODE_SUFFIX: ${{ env.NODE_SUFFIX }}
         run: |
           YEAR_WEEK=$(date -u +"%Y-W%V")
 
@@ -269,12 +269,12 @@ jobs:
             type=org.opencontainers.licenses,value=CC-PDM-1.0
             type=org.opencontainers.image.url,value=https://github.com/garbee/docker-containers
           tags: |
-            type=raw,value=main${{ steps.node-prepare.outputs.NODE_TAG_SUFFIX }},enable=${{ github.ref_name == 'main' }}
+            type=raw,value=main${{ env.NODE_SUFFIX }},enable=${{ github.ref_name == 'main' }}
             type=raw,value=latest,enable=${{ github.ref_name == 'main' && matrix.node-version == '22' }}
             type=raw,value=${{ steps.tag_info.outputs.TAG }}
-            type=raw,value=on:manual${{ steps.node-prepare.outputs.NODE_TAG_SUFFIX }},enable=${{ github.event_name == 'workflow_dispatch' }}
-            type=raw,value=on:scheduled${{ steps.node-prepare.outputs.NODE_TAG_SUFFIX }},enable=${{ github.event_name == 'schedule' }}
-            type=raw,value=on:push${{ steps.node-prepare.outputs.NODE_TAG_SUFFIX }},enable=${{ github.event_name == 'push' }}
+            type=raw,value=on:manual${{ env.NODE_SUFFIX }},enable=${{ github.event_name == 'workflow_dispatch' }}
+            type=raw,value=on:scheduled${{ env.NODE_SUFFIX }},enable=${{ github.event_name == 'schedule' }}
+            type=raw,value=on:push${{ env.NODE_SUFFIX }},enable=${{ github.event_name == 'push' }}
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
@@ -292,11 +292,6 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Debug info
-        env:
-          OCI_IMAGES_PATH: ${{ runner.temp }}/oci-images
-        run: ls -lah "$OCI_IMAGES_PATH"
-
       - name: Create manifest list and pushes
         # This step creates a manifest list for the Docker images built for different platforms.
         # It uses the docker buildx imagetools create command to create the manifest list.
@@ -308,7 +303,7 @@ jobs:
         env:
           NEEDS_BUILD_OUTPUTS_GHCR_IMAGE: ${{ needs.build.outputs.GHCR_IMAGE }}
           NODE_VERSION: ${{ matrix.node-version }}
-          OCI_IMAGES_PATH: ${{ runner.temp }}/oci-images
+          DIGEST_PATH: /tmp/digests
         run: ./bin/create-manifests-and-push.sh
 
       # This step inspects the created manifest list to verify its contents.
@@ -322,9 +317,7 @@ jobs:
 
       - name: Delete Artifacts
         uses: geekyeggo/delete-artifact@f275313e70c08f6120db482d7a6b98377786765b # v5.1.0
-        # Ensure artifacts are deleted even if previous steps fail
-        # Whole images are stored, so they get huge.
         if: always()
         with:
           name: |
-            oci-*${{ steps.node-prepare.outputs.NODE_SUFFIX }}
+            digests-*${{ env.NODE_SUFFIX }}
