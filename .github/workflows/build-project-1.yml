@@ -93,8 +93,7 @@ jobs:
 
     env:
       NODE_SUFFIX: "-node.${{ matrix.node-version }}"
-      IMAGE_NAME: ${{ vars.IMAGE_NAME }}
-      GHCR_IMAGE: ghcr.io/garbee/${{ vars.IMAGE_NAME }}
+      GHCR_IMAGE: ${{ vars.GHCR_IMAGE }}
 
     steps:
       - name: Checkout
@@ -172,8 +171,7 @@ jobs:
 
     env:
       NODE_SUFFIX: "-node.${{ matrix.node-version }}"
-      IMAGE_NAME: ${{ vars.IMAGE_NAME }}
-      GHCR_IMAGE: ghcr.io/garbee/${{ vars.IMAGE_NAME }}
+      GHCR_IMAGE: ${{ vars.GHCR_IMAGE }}
 
     steps:
       - name: Checkout
