@@ -234,3 +234,44 @@ jobs:
         env:
           IMAGE: "${{ env.GHCR_IMAGE }}:${{ steps.meta.outputs.version }}"
         run: docker buildx imagetools inspect "$IMAGE"
+
+      - name: Verify Size
+        id: verify-size
+        continue-on-error: true
+        env:
+          IMAGE: "${{ env.GHCR_IMAGE }}:${{ steps.meta.outputs.version }}"
+          MAX_SIZE_GB: 2.2
+        run: |
+          set -e
+          # Get image size in GB
+          IMAGE_SIZE_BYTES=$(docker inspect "$IMAGE" --format='{{.Size}}')
+          IMAGE_SIZE_GB=$(echo "scale=2; $IMAGE_SIZE_BYTES / 1073741824" | bc)
+          echo "Image size: ${IMAGE_SIZE_GB} GB (max allowed: ${MAX_SIZE_GB} GB)"
+          # Check size constraint
+          SIZE_OK=$(echo "$IMAGE_SIZE_GB <= $MAX_SIZE_GB" | bc)
+          if [ "$SIZE_OK" -eq 0 ]; then
+            echo "::error::Image exceeds maximum size limit of ${MAX_SIZE_GB} GB"
+            exit 1
+          fi
+          echo "::success::Image size is within limits"
+
+      - name: Audit image with dive
+        id: dive-audit
+        continue-on-error: true
+        env:
+          IMAGE: "${{ env.GHCR_IMAGE }}:${{ steps.meta.outputs.version }}"
+          MIN_EFFICIENCY: 98
+        run: |
+          set -e
+
+          DIVE_VERSION=$(curl -sL "https://api.github.com/repos/wagoodman/dive/releases/latest" | grep '"tag_name":' | sed -E 's/.*"v([^"]+)".*/\1/')
+          curl -fOL "https://github.com/wagoodman/dive/releases/download/v${DIVE_VERSION}/dive_${DIVE_VERSION}_linux_amd64.deb"
+          sudo apt install -y ./dive_${DIVE_VERSION}_linux_amd64.deb
+          rm ./dive_${DIVE_VERSION}_linux_amd64.deb
+
+          # Pull the image for inspection
+          docker pull "$IMAGE"
+
+          # Run dive to analyze the image
+          # Dive uses the `.dive-ci` configuration file to decide to pass/fail
+          dive "$IMAGE"
