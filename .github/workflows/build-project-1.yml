@@ -313,7 +313,7 @@ jobs:
           NEEDS_BUILD_OUTPUTS_GHCR_IMAGE: ${{ needs.build.outputs.GHCR_IMAGE }}
           INSTALLED_VERSIONS: ${{ toJson(needs.versions.outputs) }}
         working-directory: /tmp/digests
-        run: ./.github/bin/create-manifests-and-push.sh
+        run: .github/bin/create-manifests-and-push.sh
 
       # This step inspects the created manifest list to verify its contents.
       # It uses the docker buildx imagetools inspect command to display information about the manifest list.
