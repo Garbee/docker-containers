@@ -11,7 +11,6 @@ set -euoC pipefail
 : "${RUN_NUMBER:?RUN_NUMBER must be set}"
 : "${RUN_ATTEMPT:?RUN_ATTEMPT must be set}"
 : "${SHA:?SHA must be set}"
-: "${NODE_SUFFIX:?NODE_SUFFIX must be set}"
 : "${GITHUB_OUTPUT:?GITHUB_OUTPUT must be set}"
 
 
