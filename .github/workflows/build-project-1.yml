@@ -312,6 +312,7 @@ jobs:
         env:
           NEEDS_BUILD_OUTPUTS_GHCR_IMAGE: ${{ needs.build.outputs.GHCR_IMAGE }}
           INSTALLED_VERSIONS: ${{ toJson(needs.versions.outputs) }}
+          NODE_VERSION: ${{ matrix.node-version }}
         working-directory: /tmp/digests
         run: .github/bin/create-manifests-and-push.sh
 
@@ -321,10 +322,8 @@ jobs:
       - name: Inspect image
         id: inspect
         env:
-          NEEDS_BUILD_OUTPUTS_GHCR_IMAGE: ${{ needs.build.outputs.GHCR_IMAGE }}
-          STEPS_META_OUTPUTS_VERSION: ${{ steps.meta.outputs.version }}
-        run: |
-          docker buildx imagetools inspect "$NEEDS_BUILD_OUTPUTS_GHCR_IMAGE:$STEPS_META_OUTPUTS_VERSION"
+          IMAGE: ${{ needs.build.outputs.GHCR_IMAGE }}\:${{ steps.meta.outputs.version }}
+        run: docker buildx imagetools inspect "$IMAGE"
 
       - name: Delete Artifacts
         uses: geekyeggo/delete-artifact@f275313e70c08f6120db482d7a6b98377786765b # v5.1.0
