@@ -197,13 +197,12 @@ jobs:
         with:
           images: ${{ env.GHCR_IMAGE }}
           tags: |
-            type=sha,prefix={{branch}}-,suffix=${{ env.NODE_SUFFIX }}
-            type=raw,value=main${{ env.NODE_SUFFIX }},enable=${{ github.ref_name == 'main' }}
-            type=raw,value=latest,enable=${{ (github.ref_name == 'main' || inputs.force_latest) && matrix.node-version == '22' }}
+            type=raw,value=branch.${{ github.ref_name }}
+            type=raw,value=latest,enable=${{ github.ref_name == 'main' || inputs.force_latest }}
             type=raw,value=${{ steps.tag_info.outputs.TAG }}
-            type=raw,value=on.manual${{ env.NODE_SUFFIX }},enable=${{ github.event_name == 'workflow_dispatch' }}
-            type=raw,value=on.scheduled${{ env.NODE_SUFFIX }},enable=${{ github.event_name == 'schedule' }}
-            type=raw,value=on.push${{ env.NODE_SUFFIX }},enable=${{ github.event_name == 'push' }}
+            type=raw,value=on.manual,enable=${{ github.event_name == 'workflow_dispatch' }}
+            type=raw,value=on.scheduled,enable=${{ github.event_name == 'schedule' }}
+            type=raw,value=on.push,enable=${{ github.event_name == 'push' }}
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0

@@ -35,7 +35,7 @@ case "$EVENT_NAME" in
     ;;
 esac
 
-TAG="${YEAR_WEEK}-${RUN_TYPE}-${UNIQUE}${NODE_SUFFIX}"
+TAG="${YEAR_WEEK}-${RUN_TYPE}-${UNIQUE}"
 
 echo "Docker Tag: $TAG"
 echo "TAG=$TAG" >> "$GITHUB_OUTPUT"

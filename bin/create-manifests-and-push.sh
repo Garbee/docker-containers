@@ -55,4 +55,7 @@ echo "::endgroup::"
 docker buildx imagetools create \
   "${tag_args[@]}" \
   --annotation="index:org.opencontainers.image.created=${timestamp}" \
+  --annotation="index:org.opencontainers.image.description=Development environment with Node.js, Java, Gradle, Python, and various dev tools installed." \
+  --annotation="index:org.opencontainers.image.url=https://${GHCR_IMAGE}" \
+  --annotation="index:org.opencontainers.image.licenses=CC-PDM-1.0" \
   "${digests[@]}"
