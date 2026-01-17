@@ -25,12 +25,13 @@ jobs:
       name: docker-dev
     permissions:
       packages: write # Ability to delete packages from GHCR.
+      contents: read
     steps:
       - name: Delete Packages
         uses: actions/delete-package-versions@v5
         with:
-          # This needs to match the GHCR_IMAGE name used in the build workflow
-          package-name: ghcr.io/garbee/${{ vars.IMAGE_NAME }}-node.${{ matrix.node-version }}
+          package-name: ${{ vars.IMAGE_NAME }}-node.${{ matrix.node-version }}
           package-type: container
-          # Try to delete everything
+          # Try to delete everything. Hard limit of 100 upstream.
+          # Should more than 100 ever exist, it'll just need more runs.
           min-versions-to-keep: 0
