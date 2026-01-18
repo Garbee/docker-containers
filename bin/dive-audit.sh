@@ -9,7 +9,6 @@ set -euoC pipefail
 : "${GITHUB_TOKEN:?GITHUB_TOKEN must be set}"
 : "${IMAGE:?IMAGE must be set}"
 : "${MIN_EFFICIENCY:=98}"
-: "${GITHUB_STEP_SUMMARY:?GITHUB_STEP_SUMMARY must be set}"
 
 if ! command -v dive &> /dev/null; then
   if ! command -v gh &> /dev/null; then
@@ -27,6 +26,31 @@ if ! command -v docker &> /dev/null; then
   exit 1
 fi
 
+if [ ! -z "${GITHUB_STEP_SUMMARY:-}" ]; then
+  if ! command -v gomplate &> /dev/null; then
+    if [[ "$(uname)" == "Darwin" ]]; then
+      echo "Error: Please install gomplate via 'brew install gomplate' on macOS." >&2
+
+      exit 1
+    else
+      if ! command -v gh &> /dev/null; then
+        echo "Error: 'gh' CLI is required to download gomplate but it's not installed." >&2
+        exit 1
+      fi
+
+      # If CI environment variable is set, do this
+      if [ "${CI:-}" = "true" ]; then
+        gh release download --pattern 'gomplate_linux-amd64' --repo hairyhenderson/gomplate --output gomplate
+        chmod +x gomplate
+        sudo mv gomplate /usr/local/bin/gomplate
+      else
+        echo "Warning: Please install 'gomplate' for processing GitHub step summary templates."
+      fi
+    fi
+
+  fi
+fi
+
 # Pull the image for inspection
 docker pull "$IMAGE"
 
@@ -35,20 +59,13 @@ docker pull "$IMAGE"
 diveOutput=$(dive "$IMAGE")
 diveStatus=$?
 
-cat >> "$GITHUB_STEP_SUMMARY" <<EOF
-# Dive Image Audit
+if [ ! -z "${GITHUB_STEP_SUMMARY:-}" ]; then
+  if command -v gomplate &> /dev/null; then
+    export DIVE_STATUS="$diveStatus"
+    export DIVE_OUTPUT="$diveOutput"
 
-- **Image:** ${IMAGE}
-- **Dive Exit Status:** ${diveStatus}
-- **Minimum Efficiency Required:** ${MIN_EFFICIENCY}"
-- **Result**: $([ $diveStatus -eq 0 ] && echo '✅ Passed' || echo '❌ Failed')
-
-## Dive Output
-
-\`\`\`shell
-  ${diveOutput}
-\`\`\`
-
-EOF
+    gomplate -f "$currentDir/templates/dive-audit.md" >> "$GITHUB_STEP_SUMMARY"
+  fi
+fi
 
 exit "$diveStatus"
