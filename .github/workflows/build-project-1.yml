@@ -246,6 +246,7 @@ jobs:
         env:
           IMAGE: "${{ env.GHCR_IMAGE }}:${{ steps.meta.outputs.version }}"
           MAX_SIZE_GB: 2.2
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: ./bin/verify-image-size.sh
 
       - name: Audit image with dive

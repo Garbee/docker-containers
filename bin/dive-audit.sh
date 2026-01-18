@@ -10,6 +10,8 @@ set -euoC pipefail
 : "${IMAGE:?IMAGE must be set}"
 : "${MIN_EFFICIENCY:=98}"
 
+currentDir=$(realpath "$(dirname "$0")")
+
 if ! command -v dive &> /dev/null; then
   if ! command -v gh &> /dev/null; then
     echo "Error: 'gh' CLI is required to download dive but it's not installed." >&2
