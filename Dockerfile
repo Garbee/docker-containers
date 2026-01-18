@@ -233,6 +233,7 @@ if [ "$(dpkg --print-architecture)" == 'arm64' ]; then
 else
   CHROME_PATH=$(npx -y @puppeteer/browsers install chrome@stable --path "${PUPPETEER_CACHE_DIR}" | tail -n 1 | cut -d' ' -f2)
   CHROMEDRIVER_PATH=$(npx -y @puppeteer/browsers install chromedriver@stable --path "${PUPPETEER_CACHE_DIR}" | tail -n 1 | cut -d' ' -f2)
+  mkdir -p "${PUPPETEER_CACHE_DIR}/bin"
   ln -s "${CHROME_PATH}" "${PUPPETEER_CACHE_DIR}/bin/chrome"
   ln -s "${CHROMEDRIVER_PATH}" "${PUPPETEER_CACHE_DIR}/bin/chromedriver"
 fi
