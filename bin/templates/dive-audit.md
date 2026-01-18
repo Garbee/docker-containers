@@ -8,7 +8,7 @@
 <summary>Full Dive Output</summary>
 
 ```shell
-{{ .output }}
+{{ include "dive-output.txt" }}
 ```
 
 </details>

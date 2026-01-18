@@ -240,6 +240,11 @@ jobs:
           IMAGE: "${{ env.GHCR_IMAGE }}:${{ steps.meta.outputs.version }}"
         run: docker buildx imagetools inspect "$IMAGE"
 
+      - name: Pull Image
+        env:
+          IMAGE: "${{ env.GHCR_IMAGE }}:${{ steps.meta.outputs.version }}"
+        run: docker pull "$IMAGE"
+
       - name: Verify Size
         id: verify-size
         continue-on-error: true

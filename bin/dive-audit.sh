@@ -11,6 +11,7 @@ set -euoC pipefail
 : "${MIN_EFFICIENCY:=98}"
 
 currentDir=$(realpath "$(dirname "$0")")
+diveOutputFile="$currentDir/templates/dive-output.txt"
 
 if ! command -v dive &> /dev/null; then
   if ! command -v gh &> /dev/null; then
@@ -58,7 +59,7 @@ docker pull "$IMAGE"
 
 # Run dive to analyze the image
 # Dive uses the `.dive-ci` configuration file to decide to pass/fail
-if dive "$IMAGE" > dive-output.txt; then
+if dive "$IMAGE" > "$diveOutputFile"; then
   diveStatus=0
 else
   diveStatus=$?
@@ -68,12 +69,10 @@ if [ ! -z "${GITHUB_STEP_SUMMARY:-}" ]; then
   if command -v gomplate &> /dev/null; then
     export DIVE_STATUS="$diveStatus"
 
-    gomplate -f "$currentDir/templates/dive-audit.md" \
-    -d output=file://dive-output.txt \
-    >> "$GITHUB_STEP_SUMMARY"
+    gomplate -f "$currentDir/templates/dive-audit.md" >> "$GITHUB_STEP_SUMMARY"
   fi
 fi
 
-rm dive-output.txt
+rm "$diveOutputFile"
 
 exit "$diveStatus"
