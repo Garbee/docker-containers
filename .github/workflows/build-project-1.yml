@@ -13,7 +13,6 @@ on:
         required: false
         type: boolean
         default: false
-
   schedule:
     # Run at 3:17 AM UTC every Sunday
     - cron: "17 3 * * 0"
@@ -24,15 +23,17 @@ on:
       - "Dockerfile"
       - ".github/workflows/build-project-1.yml"
       - "bin/**"
+  pull_request:
+    paths:
+      - "Dockerfile"
+      - ".github/workflows/build-project-1.yml"
+      - "bin/**"
 
 permissions:
-  # Global permissions for the workflow, which can be overridden at the job level
   contents: read
 
 concurrency:
-  # This concurrency group ensures that only one job in the group runs at a time.
-  # If a new job is triggered, the previous one will be canceled.
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.head_ref || github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -56,7 +57,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: ./bin/get-latest-tool-versions.sh
-  # The build job builds the Docker image for each platform specified in the matrix.
+
   build:
     needs:
       - versions
@@ -89,7 +90,7 @@ jobs:
     name: Build for ${{ matrix.platform }} (Node ${{ matrix.node-version }})
 
     environment:
-      name: ${{ github.event_name == 'push' && 'docker-dev' || inputs.production && 'docker-production' || github.event_name == 'schedule' && 'docker-production' || 'docker-dev' }}
+      name: ${{ github.event_name == 'push' && 'docker-dev' || inputs.production && 'docker-production' || github.event_name == 'schedule' && 'docker-production' || github.event_name == 'pull_request' && 'docker-pr' || 'docker-dev' }}
       url: ${{ vars.BASE_URL }}-node.${{ matrix.node-version }}
 
     env:
@@ -166,7 +167,7 @@ jobs:
       - build
 
     environment:
-      name: ${{ github.event_name == 'push' && 'docker-dev' || inputs.production && 'docker-production' || github.event_name == 'schedule' && 'docker-production' || 'docker-dev' }}
+      name: ${{ github.event_name == 'push' && 'docker-dev' || inputs.production && 'docker-production' || github.event_name == 'schedule' && 'docker-production' || github.event_name == 'pull_request' && 'docker-pr' || 'docker-dev' }}
       url: ${{ vars.BASE_URL }}-node.${{ matrix.node-version }}
 
     env:
@@ -185,27 +186,33 @@ jobs:
           pattern: digests-*${{ matrix.node-version }}
           merge-multiple: true
 
-      - name: Generate Docker tag
+      - name: Generate Docker Tag
         id: tag_info
         env:
           EVENT_NAME: ${{ github.event_name }}
           SHA: ${{ github.sha }}
           RUN_NUMBER: ${{ github.run_number }}
           RUN_ATTEMPT: ${{ github.run_attempt }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
         run: ./bin/generate-docker-tag.sh
+
+      - name: Normalize Branch Name
+        id: normalize_branch
+        run: ./bin/normalize-branch-name.sh
 
       - name: Docker meta
         id: meta
         uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051 # v5.10.0
         with:
           images: ${{ env.GHCR_IMAGE }}
+          # The tags we actually care about.
+          # 1. Branch with the name for non-PR builds.
+          # 2. `latest` which is a special primary tag only happens in the main branch when going into production.
+          # 3. The generated tag from `Generate Docker Tag`. This gives a scoped tag for every event.
           tags: |
-            type=raw,value=branch.${{ github.ref_name }}
-            type=raw,value=latest,enable=${{ github.ref_name == 'main' || inputs.force_latest }}
+            type=raw,value=branch.${{ steps.normalize_branch.outputs.name }},enable=${{ github.event_name != 'pull_request' && 'true' || 'false' }}
+            type=raw,value=latest,enable=${{ github.ref_name == 'main' && (inputs.force_latest == true || github.event_name == 'schedule') || 'false' }}
             type=raw,value=${{ steps.tag_info.outputs.TAG }}
-            type=raw,value=on.manual,enable=${{ github.event_name == 'workflow_dispatch' }}
-            type=raw,value=on.scheduled,enable=${{ github.event_name == 'schedule' }}
-            type=raw,value=on.push,enable=${{ github.event_name == 'push' }}
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
@@ -232,3 +239,26 @@ jobs:
         env:
           IMAGE: "${{ env.GHCR_IMAGE }}:${{ steps.meta.outputs.version }}"
         run: docker buildx imagetools inspect "$IMAGE"
+
+      - name: Pull Image
+        env:
+          IMAGE: "${{ env.GHCR_IMAGE }}:${{ steps.meta.outputs.version }}"
+        run: docker pull "$IMAGE"
+
+      - name: Verify Size
+        id: verify-size
+        continue-on-error: true
+        env:
+          IMAGE: "${{ env.GHCR_IMAGE }}:${{ steps.meta.outputs.version }}"
+          MAX_SIZE_GB: 2.2
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: ./bin/verify-image-size.sh
+
+      - name: Audit image with dive
+        id: dive-audit
+        continue-on-error: true
+        env:
+          IMAGE: "${{ env.GHCR_IMAGE }}:${{ steps.meta.outputs.version }}"
+          MIN_EFFICIENCY: 98
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: ./bin/dive-audit.sh
