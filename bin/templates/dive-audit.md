@@ -8,7 +8,7 @@
 <summary>Full Dive Output</summary>
 
 ```shell
-{{ .output }}
+{{ datasource "output" }}
 ```
 
 </details>
