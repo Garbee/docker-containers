@@ -42,10 +42,10 @@ fi
 
 echo "::notice::Image size is within limits"
 
-tee -a "$GITHUB_STEP_SUMMARY" <<EOF
+cat >> "$GITHUB_STEP_SUMMARY" <<EOF
 # Image Size Verification
 
-- **Image:** "${IMAGE}"
+- **Image:** ${IMAGE}
 - **Actual Size:** ${IMAGE_SIZE_GB} GB
 - **Maximum Allowed Size:** ${MAX_SIZE_GB} GB
 

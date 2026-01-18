@@ -35,13 +35,13 @@ docker pull "$IMAGE"
 diveOutput=$(dive "$IMAGE")
 diveStatus=$?
 
-tee -a "$GITHUB_STEP_SUMMARY" <<EOF
+cat >> "$GITHUB_STEP_SUMMARY" <<EOF
 # Dive Image Audit
 
-- **Image:** "${IMAGE}"
-- **Dive Exit Status:** "${diveStatus}"
-- **Minimum Efficiency Required:** "${MIN_EFFICIENCY}"%
-- **Result**: ${diveStatus -eq 0 && '✅ Passed' || '❌ Failed'}
+- **Image:** ${IMAGE}
+- **Dive Exit Status:** ${diveStatus}
+- **Minimum Efficiency Required:** ${MIN_EFFICIENCY}"
+- **Result**: $([ $diveStatus -eq 0 ] && echo '✅ Passed' || echo '❌ Failed')
 
 ## Dive Output
 
