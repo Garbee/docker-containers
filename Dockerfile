@@ -31,6 +31,7 @@ FROM hadolint/hadolint:v2.14.0-debian AS hadolint-src
 FROM rhysd/actionlint:1.7.8 AS actionlint-src
 FROM mvdan/shfmt:v3.12.0 AS shfmt-src
 FROM mikefarah/yq:4.50.1 AS yq-src
+FROM hairyhenderson/gomplate:v4.3.3 AS gomplate-src
 FROM ghcr.io/zizmorcore/zizmor:1.21.0 AS zizmor-src
 FROM ghcr.io/jqlang/jq:1.8.1 AS jq-src
 # ----------------------------------
@@ -41,30 +42,6 @@ FROM ghcr.io/jqlang/jq:1.8.1 AS jq-src
 # Useful in case we add new stages so the same base is used everywhere.
 FROM ubuntu:noble-20260113 AS base-runtime
 
-# ---------- Browser installation stage ----------
-# Use node-src as the base since it has npm/npx available
-# without spending extra time to install it to the base-runtime.
-FROM node-src AS browser-installer
-ARG TARGETARCH
-ARG PUPPETEER_CACHE_DIR=/browsers
-ARG BROWSER_CACHE=/browser-cache
-
-SHELL ["/bin/bash", "-o", "pipefail", "-c"]
-
-RUN --mount=type=cache,target=${BROWSER_CACHE},id=puppeteer-browsers-${TARGETARCH},sharing=shared \
-  <<EOF
-set -eux
-# Install to cache directory first
-CHROME_PATH=$(npx -y @puppeteer/browsers install chrome@stable --path "${BROWSER_CACHE}" | tail -n 1 | cut -d' ' -f2)
-CHROMEDRIVER_PATH=$(npx -y @puppeteer/browsers install chromedriver@stable --path "${BROWSER_CACHE}" | tail -n 1 | cut -d' ' -f2)
-# Copy from cache to permanent location
-mkdir -p "${PUPPETEER_CACHE_DIR}"
-cp -r "${BROWSER_CACHE}"/* "${PUPPETEER_CACHE_DIR}"/
-# Save paths (adjust to use permanent location)
-echo "${CHROME_PATH/${BROWSER_CACHE}/${PUPPETEER_CACHE_DIR}}" > /chrome_path.txt
-echo "${CHROMEDRIVER_PATH/${BROWSER_CACHE}/${PUPPETEER_CACHE_DIR}}" > /chromedriver_path.txt
-EOF
-
 # ---------- Final dev runtime ----------
 FROM base-runtime AS dev-runtime
 ARG TARGETARCH
@@ -72,6 +49,7 @@ ARG NODE_VERSION
 ARG DEBIAN_FRONTEND=noninteractive
 ARG APT_LISTCHANGES_FRONTEND=none
 ARG UCF_FORCE_CONFFNEW=1
+ARG PUPPETEER_CACHE_DIR=/browsers
 
 LABEL org.opencontainers.image.title="Development Container" \
       org.opencontainers.image.description="Development environment with Node.js, Java, Gradle, Python, and various dev tools installed." \
@@ -86,6 +64,7 @@ LABEL org.opencontainers.image.title="Development Container" \
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
 ENV PATH="/usr/local/lib/node_modules/bin:\
+${PUPPETEER_CACHE_DIR}/bin:\
 /opt/venv/bin:\
 /opt/gradle/bin:\
 /opt/java/openjdk/bin:\
@@ -100,21 +79,18 @@ ENV PATH="/usr/local/lib/node_modules/bin:\
   FZF_DEFAULT_OPTS="--height=40% --reverse --border" \
   PUPPETEER_CACHE_DIR=/browsers \
   PUPPETEER_SKIP_DOWNLOAD=true \
+  CHROME_BIN=/browsers/bin/chrome \
+  CHROMEDRIVER_BIN=/browsers/bin/chromedriver \
   TZ=UTC
 
 RUN <<EOF
 set -euxo pipefail
-: "${PUPPETEER_CACHE_DIR:?PUPPETEER_CACHE_DIR must be set}"
-
 groupadd -r node
 usermod -aG node ubuntu
 usermod -aG staff ubuntu
 mkdir -p /usr/local/lib/node_modules
 chown -R root:node /usr/local/lib/node_modules /usr/local/bin
 chmod -R 775 /usr/local/lib/node_modules /usr/local/bin
-mkdir -p "${PUPPETEER_CACHE_DIR}"
-chown -R root:staff "${PUPPETEER_CACHE_DIR}"
-chmod -R 775 "${PUPPETEER_CACHE_DIR}"
 mkdir -p /etc/apt/keyrings
 chmod 755 /etc/apt/keyrings
 mkdir -p /etc/apt/sources.list.d
@@ -123,12 +99,13 @@ EOF
 
 # Bring in toolchains/artifacts (optimized with --link)
 COPY --link --from=hadolint-src   /bin/hadolint /usr/local/bin/
-# Actionlint also has shellcheck in its bin
-COPY --link --from=actionlint-src  /usr/local/bin/ /usr/local/bin/
 COPY --link --from=jq-src          /jq     /usr/local/bin/jq
 COPY --link --from=yq-src          /usr/bin/yq     /usr/local/bin/yq
 COPY --link --from=zizmor-src      /usr/bin/zizmor /usr/local/bin/zizmor
 COPY --link --from=shfmt-src       /bin/              /usr/local/bin/
+COPY --link --from=gomplate-src    /gomplate         /usr/local/bin/gomplate
+## Actionlint also has shellcheck in its bin
+COPY --link --from=actionlint-src  /usr/local/bin/ /usr/local/bin/
 
 # Symlink-dependent toolchains (cannot use --link)
 COPY --from=node-src /usr/local/ /usr/local/
@@ -136,13 +113,6 @@ COPY --from=node-src /opt /opt
 COPY --from=jdk-src $JAVA_HOME $JAVA_HOME
 COPY --from=gradle-src /opt/gradle ${GRADLE_HOME}
 COPY --from=gradle-src /usr/bin/gradle /usr/bin/gradle
-
-# Copy browsers from browser-installer stage
-COPY --link --from=browser-installer ${PUPPETEER_CACHE_DIR} ${PUPPETEER_CACHE_DIR}
-COPY --from=browser-installer /chrome_path.txt /chrome_path.txt
-COPY --from=browser-installer /chromedriver_path.txt /chromedriver_path.txt
-
-ADD --chmod=0044 https://cli.github.com/packages/githubcli-archive-keyring.gpg /etc/apt/keyrings/githubcli-archive-keyring.gpg
 
 RUN --mount=type=cache,target=/var/cache/apt,id=apt-archives,sharing=shared \
   --mount=type=cache,target=/var/lib/apt/lists,id=apt-lists,sharing=locked \
@@ -153,7 +123,9 @@ set -euxo pipefail
 apt-get update
 # In order to get apt-add-repository we need to install software-properties-common
 # Then we install all the main packages at once.
-apt-get install -y --no-install-recommends software-properties-common
+apt-get install -y --no-install-recommends software-properties-common curl
+curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | tee /etc/apt/keyrings/githubcli-archive-keyring.gpg > /dev/null
+chmod 0044 /etc/apt/keyrings/githubcli-archive-keyring.gpg
 add-apt-repository ppa:git-core/ppa -y
 echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | tee /etc/apt/sources.list.d/github-cli.list > /dev/null
 apt-get update
@@ -195,47 +167,75 @@ apt-get install -y --no-install-recommends \
   wget \
   xdg-utils \
   bash-completion fzf ripgrep bat direnv eza git-delta \
-  curl lsb-release unzip \
+  lsb-release unzip \
   openssh-client gnupg gnupg2 git gh \
   sudo gosu \
   xvfb
 rm -rf /var/lib/apt/lists/*
 
-# Setup Puppeteer browser environment variables
-CHROME_PATH=$(cat /chrome_path.txt)
-echo "export CHROME_BIN=${CHROME_PATH}" >> /etc/environment
-CHROMEDRIVER_PATH=$(cat /chromedriver_path.txt)
-echo "export CHROMEDRIVER_BIN=${CHROMEDRIVER_PATH}" >> /etc/environment
-rm /chrome_path.txt /chromedriver_path.txt
-
 # Setup sudo access
-echo "ubuntu ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers.d/ubuntu
+echo "ubuntu ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/ubuntu
 chmod 0440 /etc/sudoers.d/ubuntu
+
+# Global npm configuration
+## This sets config for both root and regular users.
+## Use the heredoc syntax so we also get comments in the image for reference in-use.
+cat > /usr/local/etc/npmrc <<EONPMRC
+## It might be thought to disable progress output.
+## Like `progress=false`
+## However, in CI this is automatically disabled.
+## So don't touch it and npm will do what is best.
+@deque:registry=https://agora.dequecloud.com/artifactory/api/npm/dequelabs/
+@axe-devtools:registry=https://agora.dequecloud.com/artifactory/api/npm/axe-devtools/
+## Disable funding messages and automatic audits
+fund=false
+audit=false
+## Prefer the offline modules when possible to speed up installs
+## Particularly useful in CI environments with caching enabled
+prefer-offline=true
+## Help network or registry issues by massaging the network config
+## It is balanced to slowly back off up to the 120ms max on the
+## final attempt.
+## It should go like this: 3.75s, 7.5s, 15s, 30s, 60s, 120s.
+## We politely back-off and delay instead of rushing retries
+## so the registry isn't hammered to cause an outage.
+fetch-retries=6
+fetch-retry-factor=2
+fetch-retry-mintimeout=3750
+fetch-retry-maxtimeout=120000
+## Setup logging to be more efficient for containers
+## Keep the default log level, but discard logs going to a fail.
+loglevel=notice
+logs-dir=/dev/null
+## We want to get away from auto-running scripts entirely.
+## Until then, at least don't hide them so we are aware of them.
+foreground-scripts=true
+EONPMRC
 
 # Install latest npm version globally
 npm install -g npm@latest
 
-## Configure npm and yarn
-npm config set -g '@deque:registry=https://agora.dequecloud.com/artifactory/api/npm/dequelabs/'
-## Disable funding messages and automatic audits
-npm config set -g fund false
-npm config set -g audit false
-## Reduce output to keep CI logs clean
-npm config set -g progress false
-## Prefer the offline modules when possible to speed up installs
-## Particularly useful in CI environments with caching enabled
-npm config set -g prefer-offline true
-## Help network or registry issues by massaging the network config
-npm config set -g fetch-retries 6
-npm config set -g fetch-retry-mintimeout 20000
-npm config set -g fetch-retry-maxtimeout 120000
-
 ## Help the network with yarn too as best we can.
 cat > /etc/.yarnrc <<EOYARNRC
+## Prefer the offline modules when possible to speed up installs
+## Particularly useful in CI environments with caching enabled
 prefer-offline true
+## Help network or registry issues by massaging the network config
+## Yarn (v1) is more limited than npm here.
 network-timeout 300000
 network-concurrency 8
 EOYARNRC
+
+if [ "$(dpkg --print-architecture)" == 'arm64' ]; then
+  echo "Skipping Chrome and Chromedriver installation on arm64 architecture."
+  echo "Not supported by Google in any way. Ref: https://issues.chromium.org/issues/374811603"
+  echo "Testing should be done outside of a container if chromedriver is required."
+else
+  CHROME_PATH=$(npx -y @puppeteer/browsers install chrome@stable --path "${PUPPETEER_CACHE_DIR}" | tail -n 1 | cut -d' ' -f2)
+  CHROMEDRIVER_PATH=$(npx -y @puppeteer/browsers install chromedriver@stable --path "${PUPPETEER_CACHE_DIR}" | tail -n 1 | cut -d' ' -f2)
+  ln -s "${CHROME_PATH}" "${PUPPETEER_CACHE_DIR}/bin/chrome"
+  ln -s "${CHROMEDRIVER_PATH}" "${PUPPETEER_CACHE_DIR}/bin/chromedriver"
+fi
 
 # Setup Python virtual environment for main user
 python3.12 -m venv /opt/venv

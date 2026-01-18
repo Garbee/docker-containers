@@ -19,7 +19,13 @@ if ! command -v dive &> /dev/null; then
     exit 1
   fi
 
-  gh release download --pattern '*_linux_amd64.deb' --repo wagoodman/dive --output dive.deb
+  if [[ "$(uname)" == "Darwin" ]]; then
+    echo "Error: Please install dive via 'brew install dive' on macOS." >&2
+    exit 1
+  fi
+
+  arch=$(dpkg --print-architecture)
+  gh release download --pattern "*_linux_${arch}.deb" --repo wagoodman/dive --output dive.deb
   sudo apt-get install -y ./dive.deb
   rm ./dive.deb
 fi
@@ -43,7 +49,8 @@ if [ ! -z "${GITHUB_STEP_SUMMARY:-}" ]; then
 
       # If CI environment variable is set, do this
       if [ "${CI:-}" = "true" ]; then
-        gh release download --pattern 'gomplate_linux-amd64' --repo hairyhenderson/gomplate --output gomplate
+        arch=$(dpkg --print-architecture)
+        gh release download --pattern "gomplate_linux-${arch}" --repo hairyhenderson/gomplate --output gomplate
         chmod +x gomplate
         sudo mv gomplate /usr/local/bin/gomplate
       else
