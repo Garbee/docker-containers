@@ -52,7 +52,7 @@ if [ "$SIZE_OK" -eq 0 ]; then
   exit 1
 fi
 
-echo "::notice::Image size is within limits"
+echo "Image size is within limits"
 
 if [ ! -z "${GITHUB_STEP_SUMMARY:-}" ]; then
   export SIZE_RESULT=":white_check_mark: Size is within the allowed limit"
