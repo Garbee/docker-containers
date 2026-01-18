@@ -69,7 +69,7 @@ if [ ! -z "${GITHUB_STEP_SUMMARY:-}" ]; then
   if command -v gomplate &> /dev/null; then
     export DIVE_STATUS="$diveStatus"
 
-    gomplate -f "$currentDir/templates/dive-audit.md" >> "$GITHUB_STEP_SUMMARY"
+    gomplate -f "$currentDir/templates/dive-audit.md" -d output="file://$diveOutputFile" >> "$GITHUB_STEP_SUMMARY"
   fi
 fi
 
