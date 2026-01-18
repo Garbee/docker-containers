@@ -181,10 +181,6 @@ chmod 0440 /etc/sudoers.d/ubuntu
 ## This sets config for both root and regular users.
 ## Use the heredoc syntax so we also get comments in the image for reference in-use.
 cat > /usr/local/etc/npmrc <<EONPMRC
-## It might be thought to disable progress output.
-## Like `progress=false`
-## However, in CI this is automatically disabled.
-## So don't touch it and npm will do what is best.
 @deque:registry=https://agora.dequecloud.com/artifactory/api/npm/dequelabs/
 @axe-devtools:registry=https://agora.dequecloud.com/artifactory/api/npm/axe-devtools/
 ## Disable funding messages and automatic audits
