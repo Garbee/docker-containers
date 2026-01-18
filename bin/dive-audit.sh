@@ -58,16 +58,22 @@ docker pull "$IMAGE"
 
 # Run dive to analyze the image
 # Dive uses the `.dive-ci` configuration file to decide to pass/fail
-diveOutput=$(dive "$IMAGE")
-diveStatus=$?
+if dive "$IMAGE" > dive-output.txt; then
+  diveStatus=0
+else
+  diveStatus=$?
+fi
 
 if [ ! -z "${GITHUB_STEP_SUMMARY:-}" ]; then
   if command -v gomplate &> /dev/null; then
     export DIVE_STATUS="$diveStatus"
-    export DIVE_OUTPUT="$diveOutput"
 
-    gomplate -f "$currentDir/templates/dive-audit.md" >> "$GITHUB_STEP_SUMMARY"
+    gomplate -f "$currentDir/templates/dive-audit.md" \
+    -d output=file://dive-output.txt \
+    >> "$GITHUB_STEP_SUMMARY"
   fi
 fi
+
+rm dive-output.txt
 
 exit "$diveStatus"

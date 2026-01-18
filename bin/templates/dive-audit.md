@@ -8,7 +8,7 @@
 <summary>Full Dive Output</summary>
 
 ```shell
-{{ .Env.DIVE_OUTPUT }}
+{{ .output }}
 ```
 
 </details>
