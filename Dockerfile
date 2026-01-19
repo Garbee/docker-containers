@@ -2,6 +2,7 @@
 # syntax=docker/dockerfile:1
 
 ARG TARGETARCH
+ARG CHROME_VERSION=stable
 
 # ----------------------------------
 # Platform Images
@@ -46,6 +47,12 @@ FROM ubuntu:noble-20260113 AS base-runtime
 FROM base-runtime AS dev-runtime
 ARG TARGETARCH
 ARG NODE_VERSION
+ARG CHROME_VERSION
+# So, we can't dynamically set ENV based on platform and what-not
+# Thus, we need to take in args of the paths at a build-time.
+# These then get set to ENV vars or an empty string if not present.
+ARG CHROME_BIN
+ARG CHROMEDRIVER_BIN
 ARG DEBIAN_FRONTEND=noninteractive
 ARG APT_LISTCHANGES_FRONTEND=none
 ARG UCF_FORCE_CONFFNEW=1
@@ -79,8 +86,8 @@ ${PUPPETEER_CACHE_DIR}/bin:\
   FZF_DEFAULT_OPTS="--height=40% --reverse --border" \
   PUPPETEER_CACHE_DIR=/browsers \
   PUPPETEER_SKIP_DOWNLOAD=true \
-  CHROME_BIN=/browsers/bin/chrome \
-  CHROMEDRIVER_BIN=/browsers/bin/chromedriver \
+  CHROME_BIN=${CHROME_BIN:-} \
+  CHROMEDRIVER_BIN=${CHROMEDRIVER_BIN:-} \
   TZ=UTC
 
 RUN <<EOF
@@ -227,8 +234,9 @@ if [ "$(dpkg --print-architecture)" == 'arm64' ]; then
   echo "Not supported by Google in any way. Ref: https://issues.chromium.org/issues/374811603"
   echo "Testing should be done outside of a container if chromedriver is required."
 else
-  CHROME_PATH=$(npx -y @puppeteer/browsers install chrome@stable --path "${PUPPETEER_CACHE_DIR}" | tail -n 1 | cut -d' ' -f2)
-  CHROMEDRIVER_PATH=$(npx -y @puppeteer/browsers install chromedriver@stable --path "${PUPPETEER_CACHE_DIR}" | tail -n 1 | cut -d' ' -f2)
+  CHROME_VERSION="${CHROME_VERSION:-stable}"
+  CHROME_PATH=$(npx -y @puppeteer/browsers install chrome@"${CHROME_VERSION}" --path "${PUPPETEER_CACHE_DIR}" | tail -n 1 | cut -d' ' -f2)
+  CHROMEDRIVER_PATH=$(npx -y @puppeteer/browsers install chromedriver@"${CHROME_VERSION}" --path "${PUPPETEER_CACHE_DIR}" | tail -n 1 | cut -d' ' -f2)
   mkdir -p "${PUPPETEER_CACHE_DIR}/bin"
   ln -s "${CHROME_PATH}" "${PUPPETEER_CACHE_DIR}/bin/chrome"
   ln -s "${CHROMEDRIVER_PATH}" "${PUPPETEER_CACHE_DIR}/bin/chromedriver"

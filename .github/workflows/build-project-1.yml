@@ -130,9 +130,14 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           annotations: ${{ steps.meta.outputs.annotations }}
           outputs: type=image,name=${{ env.GHCR_IMAGE }},push-by-digest=true,name-canonical=true,push=true
+          # CHROME_BIN and CHROMEDRIVER_BIN values are set in the Dockerfile.
+          # Keep them in sync. These should be the symlink targets for consistency.
           build-args: |
             NODE_VERSION=${{ matrix.node-version }}
             GRADLE_VERSION=${{ needs.versions.outputs.gradle }}
+            CHROME_VERSION=${{ vars.CHROME_VERSION || 'stable' }}
+            CHROME_BIN=${{ matrix.platform == 'linux/amd64' && '/browsers/bin/chrome' || '' }}
+            CHROMEDRIVER_BIN=${{ matrix.platform == 'linux/amd64' && '/browsers/bin/chromedriver' || '' }}
 
       - name: Export digest
         env:
