@@ -59,25 +59,25 @@ ARG UCF_FORCE_CONFFNEW=1
 ARG PUPPETEER_CACHE_DIR=/browsers
 
 LABEL org.opencontainers.image.title="Development Container" \
-      org.opencontainers.image.description="Development environment with Node.js, Java, Gradle, Python, and various dev tools installed." \
-      org.opencontainers.image.url="https://github.com/garbee/docker-containers" \
-      org.opencontainers.image.source="https://github.com/garbee/docker-containers" \
-      org.opencontainers.image.documentation="https://github.com/garbee/docker-containers" \
-      org.opencontainers.image.vendor="Garbee" \
-      org.opencontainers.image.licenses="CC-PDM-1.0" \
-      org.opencontainers.image.authors="Garbee" \
-      me.garbee.environments="development,ci"
+  org.opencontainers.image.description="Development environment with Node.js, Java, Gradle, Python, and various dev tools installed." \
+  org.opencontainers.image.url="https://github.com/garbee/docker-containers" \
+  org.opencontainers.image.source="https://github.com/garbee/docker-containers" \
+  org.opencontainers.image.documentation="https://github.com/garbee/docker-containers" \
+  org.opencontainers.image.vendor="Garbee" \
+  org.opencontainers.image.licenses="CC-PDM-1.0" \
+  org.opencontainers.image.authors="Garbee" \
+  me.garbee.environments="development,ci"
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
 ENV PATH="/usr/local/lib/node_modules/bin:\
-${PUPPETEER_CACHE_DIR}/bin:\
-/opt/venv/bin:\
-/opt/gradle/bin:\
-/opt/java/openjdk/bin:\
-/home/ubuntu/.local/bin:\
-/usr/local/bin:\
-/usr/bin:${PATH}" \
+  ${PUPPETEER_CACHE_DIR}/bin:\
+  /opt/venv/bin:\
+  /opt/gradle/bin:\
+  /opt/java/openjdk/bin:\
+  /home/ubuntu/.local/bin:\
+  /usr/local/bin:\
+  /usr/bin:${PATH}" \
   JAVA_HOME=/opt/java/openjdk \
   GRADLE_HOME=/opt/gradle \
   NODE_ENV=development \
@@ -256,6 +256,14 @@ rm -rf /var/log/apt/*
 rm /var/log/fontconfig.log
 rm /var/cache/debconf/*-old
 rm -rf /root/.launchpadlib
+# Remove documentation and man pages
+rm -rf /usr/share/doc \
+      /usr/share/man \
+      /usr/share/info \
+      /usr/share/locale \
+      /var/cache/debconf/* \
+      /usr/local/share/man \
+      /usr/local/share/doc
 apt-get clean
 EOF
 
