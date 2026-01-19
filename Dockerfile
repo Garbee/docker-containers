@@ -239,6 +239,16 @@ python3.12 -m venv /opt/venv
 chown -R root:ubuntu /opt/venv
 chmod -R 775 /opt/venv
 /opt/venv/bin/pip install --no-cache-dir pip-licenses autopep8 pylint
+
+rm -rf /tmp/*
+rm /var/log/dpkg.log*
+rm /var/log/apt/history.log*
+rm /var/log/apt/term.log*
+rm -rf /var/log/apt/*
+rm /var/log/fontconfig.log
+rm /var/cache/debconf/*-old
+rm -rf /root/.launchpadlib
+apt-get clean
 EOF
 
 WORKDIR /workspaces
