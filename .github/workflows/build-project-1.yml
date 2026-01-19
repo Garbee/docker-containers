@@ -40,6 +40,7 @@ jobs:
   versions:
     name: Get Latest Tool versions
     runs-on: ubuntu-slim
+    timeout-minutes: 10
     outputs:
       gradle: ${{ steps.get-versions.outputs.gradle }}
       node: ${{ steps.get-versions.outputs.node }}
@@ -61,6 +62,8 @@ jobs:
   build:
     needs:
       - versions
+
+    timeout-minutes: 10
 
     permissions:
       contents: read # Ability to clone the repository.
@@ -157,6 +160,7 @@ jobs:
   merge:
     name: Merge Docker manifests (Node ${{ matrix.node-version }})
     runs-on: ubuntu-latest
+    timeout-minutes: 10
 
     permissions:
       contents: read # Ability to clone the repository.
